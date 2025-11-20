@@ -1,8 +1,8 @@
 import java.util.*;
 
 public class RegisterController {
-    private ProductManager productManager;
-    private List<TransactionItem> currentTransaction;
+    private final ProductManager productManager;
+    private final List<TransactionItem> currentTransaction;
     private RegisterUI ui;
 
     public RegisterController(ProductManager productManager) {
@@ -15,51 +15,63 @@ public class RegisterController {
     }
 
     public void addItem(String upc, int qty) {
-        Product product = productManager.getProductByUPC(upc);
-
+        Product product = findProduct(upc);
         if (product == null) {
-            ui.showError("Product not found with UPC: " + upc);
             return;
         }
 
-        // Check if item already exists in transaction
-        TransactionItem existingItem = findItemByUPC(upc);
+        addOrUpdateTransactionItem(product, qty);
+        refreshUI();
+    }
+
+    private Product findProduct(String upc) {
+        Product product = productManager.getProductByUPC(upc);
+        if (product == null) {
+            ui.showError("Product not found with UPC: " + upc);
+        }
+        return product;
+    }
+
+    private void addOrUpdateTransactionItem(Product product, int qty) {
+        TransactionItem existingItem = findItemByUPC(product.getUpc());
 
         if (existingItem != null) {
             existingItem.addQuantity(qty);
         } else {
-            // Add new item
-            TransactionItem newItem = new TransactionItem(product, qty);
-            currentTransaction.add(newItem);
+            currentTransaction.add(new TransactionItem(product, qty));
         }
 
-        // Update UI
+        // Log to console
+        logProductToConsole(product);
+    }
+
+    private void logProductToConsole(Product product) {
+        System.out.println("UPC: " + product.getUpc() + ", Description: " + product.getName() + ", Price: " + product.getPrice());
+    }
+
+    private void refreshUI() {
         ui.clearTable();
-        for (TransactionItem item : currentTransaction) {
-            ui.addItemToTable(
-                    item.getProduct().getUpc(),
-                    item.getProduct().getName(),
-                    item.getProduct().getPrice(),
-                    item.getQuantity(),
-                    item.getTotal()
-            );
-        }
+        currentTransaction.forEach(item ->
+                ui.addItemToTable(
+                        item.getProduct().getUpc(),
+                        item.getProduct().getName(),
+                        item.getProduct().getPrice(),
+                        item.getQuantity(),
+                        item.getTotal()
+                )
+        );
     }
 
     private TransactionItem findItemByUPC(String upc) {
-        for (TransactionItem item : currentTransaction) {
-            if (item.getProduct().getUpc().equals(upc)) {
-                return item;
-            }
-        }
-        return null;
+        return currentTransaction.stream()
+                .filter(item -> item.getProduct().getUpc().equals(upc))
+                .findFirst()
+                .orElse(null);
     }
 
     public double getTotal() {
-        double total = 0;
-        for (TransactionItem item : currentTransaction) {
-            total += item.getTotal();
-        }
-        return total;
+        return currentTransaction.stream()
+                .mapToDouble(TransactionItem::getTotal)
+                .sum();
     }
 }

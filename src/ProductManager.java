@@ -9,7 +9,6 @@ public class ProductManager {
 
     public void loadPriceBook(String filePath) {
         products = PricebookParser.parseTSV(filePath);
-        System.out.println("Loaded " + products.size() + " products from pricebook");
     }
 
     public Product getProductByUPC(String upc) {

@@ -42,11 +42,11 @@ public class RegisterController {
         }
 
         // Log to console
-        logProductToConsole(product);
+        logProductToConsole(product, qty);
     }
 
-    private void logProductToConsole(Product product) {
-        System.out.println("UPC: " + product.getUpc() + ", Description: " + product.getName() + ", Price: " + product.getPrice());
+    private void logProductToConsole(Product product, int qty) {
+        System.out.println("UPC: " + product.getUpc() + ", Description: " + product.getName() + ", Price: " + product.getPrice() + ", QTY: " + qty);
     }
 
     private void refreshUI() {

@@ -38,7 +38,7 @@ public class RegisterUI extends JFrame {
     }
 
     private void setupFrame() {
-        setTitle("Mock Register - Scanner Ready");
+        setTitle("Mock Register");
         setSize(WINDOW_WIDTH, WINDOW_HEIGHT);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
@@ -278,19 +278,9 @@ public class RegisterUI extends JFrame {
         }
 
         private void processScan(String upc) {
-            int qty = getQuantityOrDefault();
-            controller.addItem(upc, qty);
+            controller.addItem(upc, 1);
             flashUpcField(upc);
             qtyInput.setText("1");
-        }
-
-        private int getQuantityOrDefault() {
-            try {
-                String qtyText = qtyInput.getText().trim();
-                return qtyText.isEmpty() ? 1 : Integer.parseInt(qtyText);
-            } catch (NumberFormatException e) {
-                return 1;
-            }
         }
     }
 }

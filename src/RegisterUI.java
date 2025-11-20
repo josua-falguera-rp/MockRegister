@@ -1,6 +1,7 @@
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.KeyEvent;
 import java.text.DecimalFormat;
 
 public class RegisterUI extends JFrame {
@@ -19,10 +20,14 @@ public class RegisterUI extends JFrame {
     }
 
     private void initializeUI() {
-        setTitle("Mock Register");
+        setTitle("Mock Register - Scanner Ready");
         setSize(1400, 900);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
+
+        // Enable global key listener for scanner input
+        KeyboardFocusManager.getCurrentKeyboardFocusManager()
+                .addKeyEventDispatcher(new ScannerKeyEventDispatcher());
 
         // Main panel
         JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
@@ -72,7 +77,7 @@ public class RegisterUI extends JFrame {
         // Input panel at bottom
         JPanel inputPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 20));
         inputPanel.setBackground(Color.WHITE);
-        inputPanel.setPreferredSize(new Dimension(0, 80));
+        inputPanel.setPreferredSize(new Dimension(0, 100));
 
         JLabel upcLabel = new JLabel("Manual UPC input:");
         upcLabel.setFont(new Font("Arial", Font.PLAIN, 18));
@@ -92,9 +97,10 @@ public class RegisterUI extends JFrame {
         addButton = new JButton("ADD");
         addButton.setFont(new Font("Arial", Font.BOLD, 18));
         addButton.setPreferredSize(new Dimension(120, 40));
-        addButton.setBackground(new Color(144, 238, 144));
+        addButton.setBackground(new Color(119, 214, 135));
         addButton.setFocusPainted(false);
 
+        inputPanel.add(Box.createHorizontalStrut(20));
         inputPanel.add(upcLabel);
         inputPanel.add(upcInput);
         inputPanel.add(qtyLabel);
@@ -172,5 +178,84 @@ public class RegisterUI extends JFrame {
     public void clearTable() {
         tableModel.setRowCount(0);
         updateTotal();
+    }
+
+    // Scanner input handler
+    private class ScannerKeyEventDispatcher implements KeyEventDispatcher {
+        private StringBuilder scanBuffer = new StringBuilder();
+        private long lastKeyTime = 0;
+        private static final long SCAN_TIMEOUT = 100; // milliseconds between keystrokes for scanner
+
+        @Override
+        public boolean dispatchKeyEvent(KeyEvent e) {
+            // Only process key pressed events
+            if (e.getID() != KeyEvent.KEY_PRESSED) {
+                return false;
+            }
+
+            long currentTime = System.currentTimeMillis();
+
+            // If too much time has passed, reset buffer (it's manual typing, not scanner)
+            if (currentTime - lastKeyTime > SCAN_TIMEOUT && !scanBuffer.isEmpty()) {
+                scanBuffer.setLength(0);
+            }
+
+            lastKeyTime = currentTime;
+
+            // Check if Enter key was pressed
+            if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                if (!scanBuffer.isEmpty()) {
+                    // Scanner input detected
+                    String scannedUPC = scanBuffer.toString().trim();
+                    scanBuffer.setLength(0);
+
+                    // Process the scanned barcode
+                    SwingUtilities.invokeLater(() -> processScan(scannedUPC));
+
+                    return true; // Consume the event
+                }
+                return false;
+            }
+
+            // Build up the scan buffer with alphanumeric characters
+            char c = e.getKeyChar();
+            if (Character.isLetterOrDigit(c) || Character.isWhitespace(c) || c == '-' || c == '_') {
+                scanBuffer.append(c);
+                return true; // Consume the event
+            }
+
+            return false;
+        }
+
+        private void processScan(String upc) {
+            // Get quantity from input field, default to 1
+            int qty = 1;
+            try {
+                String qtyText = qtyInput.getText().trim();
+                if (!qtyText.isEmpty()) {
+                    qty = Integer.parseInt(qtyText);
+                }
+            } catch (NumberFormatException e) {
+                // Use default quantity of 1
+            }
+
+            // Add the item
+            controller.addItem(upc, qty);
+
+            // Visual feedback
+            upcInput.setText(upc);
+            upcInput.setBackground(new Color(144, 238, 144, 100));
+
+            // Reset background after a moment
+            Timer timer = new Timer(200, evt -> {
+                upcInput.setText("");
+                upcInput.setBackground(Color.WHITE);
+            });
+            timer.setRepeats(false);
+            timer.start();
+
+            // Reset quantity to 1
+            qtyInput.setText("1");
+        }
     }
 }

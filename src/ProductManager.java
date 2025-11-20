@@ -15,16 +15,4 @@ public class ProductManager {
     public Product getProductByUPC(String upc) {
         return products.get(upc);
     }
-
-    public Collection<Product> getAllProducts() {
-        return products.values();
-    }
-
-    public boolean hasProduct(String upc) {
-        return products.containsKey(upc);
-    }
-
-    public int getProductCount() {
-        return products.size();
-    }
 }

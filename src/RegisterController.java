@@ -26,7 +26,6 @@ public class RegisterController {
         TransactionItem existingItem = findItemByUPC(upc);
 
         if (existingItem != null) {
-            // Update existing item
             existingItem.addQuantity(qty);
         } else {
             // Add new item
@@ -62,41 +61,5 @@ public class RegisterController {
             total += item.getTotal();
         }
         return total;
-    }
-
-    public void clearTransaction() {
-        currentTransaction.clear();
-        ui.clearTable();
-    }
-
-    public List<TransactionItem> getCurrentTransaction() {
-        return new ArrayList<>(currentTransaction);
-    }
-
-    // Inner class to represent items in the current transaction
-    public static class TransactionItem {
-        private Product product;
-        private int quantity;
-
-        public TransactionItem(Product product, int quantity) {
-            this.product = product;
-            this.quantity = quantity;
-        }
-
-        public void addQuantity(int qty) {
-            this.quantity += qty;
-        }
-
-        public Product getProduct() {
-            return product;
-        }
-
-        public int getQuantity() {
-            return quantity;
-        }
-
-        public double getTotal() {
-            return product.getPrice() * quantity;
-        }
     }
 }

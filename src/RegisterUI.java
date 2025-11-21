@@ -19,11 +19,9 @@ public class RegisterUI extends JFrame {
     private final DefaultTableModel tableModel;
     private final DecimalFormat df = new DecimalFormat("#,##0.00");
 
-    private JTable itemTable;
     private JLabel totalLabel;
     private JTextField upcInput;
     private JTextField qtyInput;
-    private JButton addButton;
 
     public RegisterUI(RegisterController controller) {
         this.controller = controller;
@@ -88,7 +86,7 @@ public class RegisterUI extends JFrame {
         panel.setBackground(BACKGROUND_GRAY);
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        itemTable = createItemTable();
+        JTable itemTable = createItemTable();
         JScrollPane scrollPane = new JScrollPane(itemTable);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
         panel.add(scrollPane, BorderLayout.CENTER);
@@ -152,7 +150,7 @@ public class RegisterUI extends JFrame {
     }
 
     private JButton createAddButton() {
-        addButton = new JButton("ADD");
+        JButton addButton = new JButton("ADD");
         addButton.setFont(new Font("Arial", Font.BOLD, 18));
         addButton.setPreferredSize(new Dimension(120, 40));
         addButton.setBackground(BUTTON_GREEN);
@@ -229,9 +227,16 @@ public class RegisterUI extends JFrame {
         timer.start();
     }
 
-    // Scanner input handler
+    /*
+     * This class listens for keyboard input that happens very quickly (like a barcode scanner).
+     * * It works by tracking how much time passes between each key press:
+     * - If keys are pressed very fast (under 100ms), it assumes it's a scanner and saves the text.
+     * - If there is a long pause, it clears the saved text (assuming it was just a user typing slowly).
+     * - When the 'Enter' key is detected, it sends the saved text to be processed.
+     * - It returns 'true' to stop these keys from being typed into other text boxes on the screen.
+     */
     private class ScannerKeyEventDispatcher implements KeyEventDispatcher {
-        private static final long SCAN_TIMEOUT = 100; // milliseconds
+        private static final long SCAN_TIMEOUT = 100;
         private final StringBuilder scanBuffer = new StringBuilder();
         private long lastKeyTime = 0;
 

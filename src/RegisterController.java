@@ -41,7 +41,7 @@ public class RegisterController {
             currentTransaction.add(new TransactionItem(product, qty));
         }
 
-        // Log to console
+        // Log to console (virtual journal)
         logProductToConsole(product, qty);
     }
 

@@ -146,6 +146,7 @@ public class RegisterUI extends JFrame {
         qtyInput = new JTextField(5);
         qtyInput.setFont(new Font("Arial", Font.PLAIN, 18));
         qtyInput.setPreferredSize(new Dimension(80, 40));
+        qtyInput.addActionListener(e -> handleAddItem());
         qtyInput.setText("1");
         return qtyInput;
     }

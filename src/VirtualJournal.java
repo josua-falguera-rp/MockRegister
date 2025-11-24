@@ -64,6 +64,7 @@ public class VirtualJournal {
     public void logVoidTransaction(int transactionId) {
         writeLine("");
         writeLine("*** TRANSACTION #" + transactionId + " VOIDED ***");
+        writeLine("*** VOIDED AT: " + dateFormat.format(new Date()) + " ***");
         writeLine("=".repeat(60));
         writeLine("");
     }
@@ -71,13 +72,22 @@ public class VirtualJournal {
     public void logSuspendTransaction(int transactionId) {
         writeLine("");
         writeLine("*** TRANSACTION #" + transactionId + " SUSPENDED ***");
+        writeLine("*** SUSPENDED AT: " + dateFormat.format(new Date()) + " ***");
         writeLine("=".repeat(60));
         writeLine("");
+    }
+
+    public void logResumeTransaction(int transactionId) {
+        writeLine("");
+        writeLine("*** TRANSACTION #" + transactionId + " RESUMED ***");
+        writeLine("*** RESUMED AT: " + dateFormat.format(new Date()) + " ***");
+        writeLine("=".repeat(60));
     }
 
     public void logTransactionComplete(int transactionId) {
         writeLine("");
         writeLine("TRANSACTION #" + transactionId + " COMPLETED");
+        writeLine("COMPLETED AT: " + dateFormat.format(new Date()));
         writeLine("=".repeat(60));
         writeLine("");
         flush();

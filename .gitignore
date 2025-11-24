@@ -30,3 +30,4 @@ bin/
 .DS_Store
 register_journal.txt
 registerdb.mv.db
+registerdb.trace.db

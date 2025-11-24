@@ -9,6 +9,7 @@ public class RegisterController {
     private final List<TransactionItem> currentTransaction;
     private RegisterUI ui;
     private int currentTransactionId = -1;
+    private boolean isResumedTransaction = false;
 
     public RegisterController(DatabaseManager dbManager, VirtualJournal journal) {
         this.dbManager = dbManager;
@@ -23,6 +24,7 @@ public class RegisterController {
     public void startNewTransaction() {
         currentTransaction.clear();
         currentTransactionId = -1;
+        isResumedTransaction = false;
         refreshUI();
     }
 
@@ -35,6 +37,13 @@ public class RegisterController {
             }
 
             addOrUpdateTransactionItem(product, qty);
+
+            // Save to database immediately if we have a transaction ID
+            if (currentTransactionId == -1 && !currentTransaction.isEmpty()) {
+                // Create the transaction in the database
+                saveCurrentTransaction();
+            }
+
             refreshUI();
         } catch (SQLException e) {
             ui.showError("Database error: " + e.getMessage());
@@ -64,6 +73,16 @@ public class RegisterController {
                     item.getProduct().getName(),
                     item.getQuantity());
             currentTransaction.remove(index);
+
+            // Update database if transaction exists
+            try {
+                if (currentTransactionId != -1) {
+                    updateTransactionTotals();
+                }
+            } catch (SQLException e) {
+                ui.showError("Database error: " + e.getMessage());
+            }
+
             refreshUI();
         }
     }
@@ -76,36 +95,126 @@ public class RegisterController {
             journal.logQuantityChange(item.getProduct().getUpc(),
                     item.getProduct().getName(),
                     oldQty, newQty);
+
+            // Update database if transaction exists
+            try {
+                if (currentTransactionId != -1) {
+                    updateTransactionTotals();
+                }
+            } catch (SQLException e) {
+                ui.showError("Database error: " + e.getMessage());
+            }
+
             refreshUI();
         }
     }
 
     public void voidTransaction() {
-        if (!currentTransaction.isEmpty() && currentTransactionId != -1) {
+        if (!currentTransaction.isEmpty()) {
             try {
-                dbManager.voidTransaction(currentTransactionId);
+                // Ensure transaction is saved before voiding
+                if (currentTransactionId == -1) {
+                    saveCurrentTransaction();
+                }
+
+                // Void the transaction in database
+                dbManager.voidTransaction(currentTransactionId, "Voided by cashier");
                 journal.logVoidTransaction(currentTransactionId);
+
+                // Clear current transaction and start fresh
+                currentTransaction.clear();
+                currentTransactionId = -1;
+                isResumedTransaction = false;
+                refreshUI();
+
+                ui.showMessage("Transaction #" + currentTransactionId + " has been voided");
             } catch (SQLException e) {
                 ui.showError("Database error: " + e.getMessage());
             }
+        } else {
+            ui.showError("No transaction to void");
         }
-        currentTransaction.clear();
-        currentTransactionId = -1;
-        refreshUI();
     }
 
     public void suspendTransaction() {
         if (!currentTransaction.isEmpty()) {
             try {
-                int transactionId = saveCurrentTransaction();
-                dbManager.suspendTransaction(transactionId);
-                journal.logSuspendTransaction(transactionId);
+                // Save transaction if not already saved
+                if (currentTransactionId == -1) {
+                    saveCurrentTransaction();
+                }
+
+                // Suspend the transaction
+                dbManager.suspendTransaction(currentTransactionId);
+                journal.logSuspendTransaction(currentTransactionId);
+
+                ui.showMessage("Transaction #" + currentTransactionId + " has been suspended");
+
+                // Clear current transaction to start a new one
                 currentTransaction.clear();
                 currentTransactionId = -1;
+                isResumedTransaction = false;
                 refreshUI();
             } catch (SQLException e) {
                 ui.showError("Database error: " + e.getMessage());
             }
+        } else {
+            ui.showError("No items to suspend");
+        }
+    }
+
+    public void resumeTransaction() {
+        try {
+            List<Integer> suspendedIds = dbManager.getSuspendedTransactions();
+
+            if (suspendedIds.isEmpty()) {
+                ui.showError("No suspended transactions available");
+                return;
+            }
+
+            // If there's a current transaction in progress, save it first
+            if (!currentTransaction.isEmpty()) {
+                int confirm = ui.confirmDialog("Save current transaction before resuming?",
+                        "Current Transaction");
+                if (confirm == 0) { // Yes
+                    suspendTransaction();
+                } else if (confirm == 2) { // Cancel
+                    return;
+                }
+            }
+
+            // Show list of suspended transactions
+            String[] options = suspendedIds.stream()
+                    .map(id -> "Transaction #" + id)
+                    .toArray(String[]::new);
+
+            String selected = ui.showSelectionDialog("Select transaction to resume:",
+                    "Resume Transaction", options);
+
+            if (selected != null) {
+                int transactionId = Integer.parseInt(selected.replace("Transaction #", ""));
+
+                // Resume the transaction
+                Map<String, Object> transData = dbManager.resumeTransaction(transactionId);
+
+                // Load the transaction items
+                currentTransaction.clear();
+                @SuppressWarnings("unchecked")
+                List<TransactionItem> items = (List<TransactionItem>) transData.get("items");
+                currentTransaction.addAll(items);
+
+                currentTransactionId = transactionId;
+                isResumedTransaction = true;
+
+                journal.logResumeTransaction(transactionId);
+                refreshUI();
+
+                ui.showMessage("Transaction #" + transactionId + " resumed");
+            }
+        } catch (SQLException e) {
+            ui.showError("Database error: " + e.getMessage());
+        } catch (NumberFormatException e) {
+            ui.showError("Invalid transaction selection");
         }
     }
 
@@ -126,17 +235,24 @@ public class RegisterController {
                 return;
             }
 
-            int transactionId = saveCurrentTransaction();
-            dbManager.updateTransactionPayment(transactionId, paymentType, tendered, change);
+            // Ensure transaction is saved
+            if (currentTransactionId == -1) {
+                saveCurrentTransaction();
+            }
+
+            // Update payment information
+            dbManager.updateTransactionPayment(currentTransactionId, paymentType, tendered, change);
 
             journal.logSubtotal(subtotal);
             journal.logTax(tax);
             journal.logTotal(total);
             journal.logPayment(paymentType, tendered, change);
-            journal.logTransactionComplete(transactionId);
+            journal.logTransactionComplete(currentTransactionId);
 
+            // Clear for next transaction
             currentTransaction.clear();
             currentTransactionId = -1;
+            isResumedTransaction = false;
             refreshUI();
 
             ui.showPaymentComplete(total, tendered, change);
@@ -146,7 +262,7 @@ public class RegisterController {
     }
 
     private int saveCurrentTransaction() throws SQLException {
-        if (currentTransactionId == -1) {
+        if (currentTransactionId == -1 && !currentTransaction.isEmpty()) {
             double subtotal = getSubtotal();
             double tax = getTax();
             double total = getTotal();
@@ -154,11 +270,33 @@ public class RegisterController {
             currentTransactionId = dbManager.saveTransaction(subtotal, tax, total);
             journal.logTransactionStart(currentTransactionId);
 
+            // Save all items
             for (TransactionItem item : currentTransaction) {
                 dbManager.saveTransactionItem(currentTransactionId, item);
             }
         }
         return currentTransactionId;
+    }
+
+    private void updateTransactionTotals() throws SQLException {
+        if (currentTransactionId != -1) {
+            // Recalculate totals
+            double subtotal = getSubtotal();
+            double tax = getTax();
+            double total = getTotal();
+
+            // Update transaction totals in database through DatabaseManager
+            dbManager.updateTransactionTotals(currentTransactionId, subtotal, tax, total);
+        }
+    }
+
+    public void showTransactionHistory() {
+        try {
+            List<Map<String, Object>> history = dbManager.getTransactionHistory(true, true);
+            ui.showTransactionHistory(history);
+        } catch (SQLException e) {
+            ui.showError("Database error: " + e.getMessage());
+        }
     }
 
     private void refreshUI() {
@@ -173,6 +311,14 @@ public class RegisterController {
             );
         }
         ui.updateTotals(getSubtotal(), getTax(), getTotal());
+
+        // Update UI to show transaction status
+        if (currentTransactionId != -1) {
+            String status = isResumedTransaction ? " (Resumed)" : "";
+            ui.setTransactionStatus("Transaction #" + currentTransactionId + status);
+        } else {
+            ui.setTransactionStatus("");
+        }
     }
 
     private TransactionItem findItemByUPC(String upc) {

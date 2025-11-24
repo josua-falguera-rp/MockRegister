@@ -3,6 +3,9 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.util.List;
+import java.util.Map;
 
 public class RegisterUI extends JFrame {
     // Constants
@@ -12,16 +15,19 @@ public class RegisterUI extends JFrame {
     private static final Color BUTTON_GREEN = new Color(119, 214, 135);
     private static final Color BUTTON_RED = new Color(220, 100, 100);
     private static final Color BUTTON_BLUE = new Color(100, 150, 220);
+    private static final Color BUTTON_YELLOW = new Color(255, 200, 100);
     private static final Color FLASH_GREEN = new Color(144, 238, 144, 100);
 
     // Components
     private final RegisterController controller;
     private final DefaultTableModel tableModel;
     private final DecimalFormat df = new DecimalFormat("#,##0.00");
+    private final SimpleDateFormat dateFormat = new SimpleDateFormat("MM/dd HH:mm");
 
     private JLabel subtotalLabel;
     private JLabel taxLabel;
     private JLabel totalLabel;
+    private JLabel transactionStatusLabel;
     private JTextField upcInput;
     private JTextField qtyInput;
     private JTable itemTable;
@@ -40,7 +46,7 @@ public class RegisterUI extends JFrame {
     }
 
     private void setupFrame() {
-        setTitle("Mock Register - Enhanced");
+        setTitle("Mock Register - Enhanced with Transaction Management");
         setSize(WINDOW_WIDTH, WINDOW_HEIGHT);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
@@ -68,6 +74,17 @@ public class RegisterUI extends JFrame {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBackground(Color.WHITE);
 
+        // Add transaction status bar
+        JPanel statusPanel = new JPanel(new BorderLayout());
+        statusPanel.setBackground(new Color(240, 240, 240));
+        statusPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+
+        transactionStatusLabel = new JLabel("");
+        transactionStatusLabel.setFont(new Font("Arial", Font.BOLD, 16));
+        transactionStatusLabel.setForeground(new Color(0, 100, 0));
+        statusPanel.add(transactionStatusLabel, BorderLayout.WEST);
+
+        panel.add(statusPanel, BorderLayout.NORTH);
         panel.add(createTotalsPanel(), BorderLayout.CENTER);
         panel.add(createQuickKeysPanel(), BorderLayout.EAST);
 
@@ -176,7 +193,7 @@ public class RegisterUI extends JFrame {
     }
 
     private DefaultTableModel createTableModel() {
-        String[] columns = {"UPC", "Description", "Price", "QTY", "Total"};
+        String[] columns = {"UPC", "Description", "Price", "QTY", "Subtotal per item"};
         return new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -186,7 +203,7 @@ public class RegisterUI extends JFrame {
     }
 
     private JPanel createActionButtonsPanel() {
-        JPanel panel = new JPanel(new GridLayout(6, 1, 5, 10));
+        JPanel panel = new JPanel(new GridLayout(8, 1, 5, 10));
         panel.setBackground(Color.WHITE);
         panel.setPreferredSize(new Dimension(200, 0));
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -194,7 +211,9 @@ public class RegisterUI extends JFrame {
         panel.add(createActionButton("Void Item", BUTTON_RED, e -> handleVoidItem()));
         panel.add(createActionButton("Qty Change", BUTTON_BLUE, e -> handleQuantityChange()));
         panel.add(createActionButton("Void Trans", BUTTON_RED, e -> handleVoidTransaction()));
-        panel.add(createActionButton("Suspend", BUTTON_BLUE, e -> handleSuspendTransaction()));
+        panel.add(createActionButton("Suspend", BUTTON_YELLOW, e -> handleSuspendTransaction()));
+        panel.add(createActionButton("Resume", BUTTON_YELLOW, e -> handleResumeTransaction()));
+        panel.add(createActionButton("History", BUTTON_BLUE, e -> handleShowHistory()));
         panel.add(createActionButton("Exact $", BUTTON_GREEN, e -> handleExactDollar()));
         panel.add(createActionButton("Next $", BUTTON_GREEN, e -> handleNextDollar()));
 
@@ -328,12 +347,12 @@ public class RegisterUI extends JFrame {
         }
 
         int confirm = JOptionPane.showConfirmDialog(this,
-                "Void entire transaction?", "Confirm Void Transaction",
+                "Void entire transaction?",
+                "Confirm Void Transaction",
                 JOptionPane.YES_NO_OPTION);
 
         if (confirm == JOptionPane.YES_OPTION) {
             controller.voidTransaction();
-            JOptionPane.showMessageDialog(this, "Transaction voided");
         }
     }
 
@@ -344,7 +363,14 @@ public class RegisterUI extends JFrame {
         }
 
         controller.suspendTransaction();
-        JOptionPane.showMessageDialog(this, "Transaction suspended");
+    }
+
+    private void handleResumeTransaction() {
+        controller.resumeTransaction();
+    }
+
+    private void handleShowHistory() {
+        controller.showTransactionHistory();
     }
 
     private void handleExactDollar() {
@@ -406,8 +432,16 @@ public class RegisterUI extends JFrame {
         totalLabel.setText("$" + df.format(total));
     }
 
+    public void setTransactionStatus(String status) {
+        transactionStatusLabel.setText(status);
+    }
+
     public void showError(String message) {
         JOptionPane.showMessageDialog(this, message, "Error", JOptionPane.ERROR_MESSAGE);
+    }
+
+    public void showMessage(String message) {
+        JOptionPane.showMessageDialog(this, message, "Information", JOptionPane.INFORMATION_MESSAGE);
     }
 
     public void showPaymentComplete(double total, double tendered, double change) {
@@ -417,6 +451,43 @@ public class RegisterUI extends JFrame {
         );
         JOptionPane.showMessageDialog(this, message, "Payment Complete",
                 JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    public int confirmDialog(String message, String title) {
+        return JOptionPane.showConfirmDialog(this, message, title, JOptionPane.YES_NO_CANCEL_OPTION);
+    }
+
+    public String showSelectionDialog(String message, String title, String[] options) {
+        return (String) JOptionPane.showInputDialog(this, message, title,
+                JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+    }
+
+    public void showTransactionHistory(List<Map<String, Object>> history) {
+        String[] columns = {"ID", "Date", "Total", "Payment", "Status"};
+        Object[][] data = new Object[history.size()][5];
+
+        for (int i = 0; i < history.size(); i++) {
+            Map<String, Object> trans = history.get(i);
+            data[i][0] = trans.get("id");
+            data[i][1] = dateFormat.format(trans.get("date"));
+            data[i][2] = "$" + df.format(trans.get("total"));
+            data[i][3] = trans.get("payment_type") != null ? trans.get("payment_type") : "-";
+
+            String status = "";
+            if ((Boolean) trans.get("is_voided")) status = "VOIDED";
+            else if ((Boolean) trans.get("is_suspended") && !(Boolean) trans.get("is_resumed")) status = "SUSPENDED";
+            else if ((Boolean) trans.get("is_completed")) status = "COMPLETED";
+            else status = "IN PROGRESS";
+
+            data[i][4] = status;
+        }
+
+        JTable historyTable = new JTable(data, columns);
+        historyTable.setEnabled(false);
+        JScrollPane scrollPane = new JScrollPane(historyTable);
+        scrollPane.setPreferredSize(new Dimension(600, 400));
+
+        JOptionPane.showMessageDialog(this, scrollPane, "Transaction History", JOptionPane.PLAIN_MESSAGE);
     }
 
     private int parseQuantity() {

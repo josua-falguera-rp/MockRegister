@@ -33,7 +33,7 @@ public class DatabaseManager {
             )
         """);
 
-        // Create transactions table
+        // Create transactions table with additional fields for tracking status
         stmt.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -45,7 +45,14 @@ public class DatabaseManager {
                 amount_tendered DECIMAL(10,2),
                 change_amount DECIMAL(10,2),
                 is_voided BOOLEAN DEFAULT FALSE,
-                is_suspended BOOLEAN DEFAULT FALSE
+                void_date TIMESTAMP DEFAULT NULL,
+                void_reason VARCHAR(255),
+                is_suspended BOOLEAN DEFAULT FALSE,
+                suspend_date TIMESTAMP DEFAULT NULL,
+                is_resumed BOOLEAN DEFAULT FALSE,
+                resume_date TIMESTAMP DEFAULT NULL,
+                is_completed BOOLEAN DEFAULT FALSE,
+                completion_date TIMESTAMP DEFAULT NULL
             )
         """);
 
@@ -171,7 +178,8 @@ public class DatabaseManager {
 
     public void updateTransactionPayment(int transactionId, String paymentType,
                                          double tendered, double change) throws SQLException {
-        String sql = "UPDATE transactions SET payment_type = ?, amount_tendered = ?, change_amount = ? WHERE id = ?";
+        String sql = "UPDATE transactions SET payment_type = ?, amount_tendered = ?, " +
+                "change_amount = ?, is_completed = TRUE, completion_date = CURRENT_TIMESTAMP WHERE id = ?";
         PreparedStatement pstmt = connection.prepareStatement(sql);
         pstmt.setString(1, paymentType);
         pstmt.setDouble(2, tendered);
@@ -182,19 +190,139 @@ public class DatabaseManager {
     }
 
     public void voidTransaction(int transactionId) throws SQLException {
-        String sql = "UPDATE transactions SET is_voided = TRUE WHERE id = ?";
+        voidTransaction(transactionId, null);
+    }
+
+    public void voidTransaction(int transactionId, String reason) throws SQLException {
+        String sql = "UPDATE transactions SET is_voided = TRUE, void_date = CURRENT_TIMESTAMP, void_reason = ? WHERE id = ?";
+        PreparedStatement pstmt = connection.prepareStatement(sql);
+        pstmt.setString(1, reason);
+        pstmt.setInt(2, transactionId);
+        pstmt.executeUpdate();
+        pstmt.close();
+    }
+
+    public void updateTransactionTotals(int transactionId, double subtotal, double tax, double total) throws SQLException {
+        String sql = "UPDATE transactions SET subtotal = ?, tax = ?, total = ? WHERE id = ?";
+        PreparedStatement pstmt = connection.prepareStatement(sql);
+        pstmt.setDouble(1, subtotal);
+        pstmt.setDouble(2, tax);
+        pstmt.setDouble(3, total);
+        pstmt.setInt(4, transactionId);
+        pstmt.executeUpdate();
+        pstmt.close();
+    }
+
+    public void suspendTransaction(int transactionId) throws SQLException {
+        String sql = "UPDATE transactions SET is_suspended = TRUE, suspend_date = CURRENT_TIMESTAMP WHERE id = ?";
         PreparedStatement pstmt = connection.prepareStatement(sql);
         pstmt.setInt(1, transactionId);
         pstmt.executeUpdate();
         pstmt.close();
     }
 
-    public void suspendTransaction(int transactionId) throws SQLException {
-        String sql = "UPDATE transactions SET is_suspended = TRUE WHERE id = ?";
-        PreparedStatement pstmt = connection.prepareStatement(sql);
+    // Get suspended transactions that can be resumed
+    public List<Integer> getSuspendedTransactions() throws SQLException {
+        String sql = "SELECT id FROM transactions WHERE is_suspended = TRUE AND is_resumed = FALSE ORDER BY id DESC";
+        Statement stmt = connection.createStatement();
+        ResultSet rs = stmt.executeQuery(sql);
+
+        List<Integer> suspendedIds = new ArrayList<>();
+        while (rs.next()) {
+            suspendedIds.add(rs.getInt("id"));
+        }
+
+        rs.close();
+        stmt.close();
+        return suspendedIds;
+    }
+
+    // Resume a suspended transaction
+    public Map<String, Object> resumeTransaction(int transactionId) throws SQLException {
+        Map<String, Object> transactionData = new HashMap<>();
+
+        // First mark the transaction as resumed
+        String updateSql = "UPDATE transactions SET is_resumed = TRUE, resume_date = CURRENT_TIMESTAMP WHERE id = ?";
+        PreparedStatement pstmt = connection.prepareStatement(updateSql);
         pstmt.setInt(1, transactionId);
         pstmt.executeUpdate();
         pstmt.close();
+
+        // Get transaction details
+        String transSql = "SELECT * FROM transactions WHERE id = ?";
+        pstmt = connection.prepareStatement(transSql);
+        pstmt.setInt(1, transactionId);
+        ResultSet rs = pstmt.executeQuery();
+
+        if (rs.next()) {
+            transactionData.put("id", rs.getInt("id"));
+            transactionData.put("subtotal", rs.getDouble("subtotal"));
+            transactionData.put("tax", rs.getDouble("tax"));
+            transactionData.put("total", rs.getDouble("total"));
+        }
+        rs.close();
+        pstmt.close();
+
+        // Get transaction items
+        String itemsSql = "SELECT * FROM transaction_items WHERE transaction_id = ? AND is_voided = FALSE";
+        pstmt = connection.prepareStatement(itemsSql);
+        pstmt.setInt(1, transactionId);
+        rs = pstmt.executeQuery();
+
+        List<TransactionItem> items = new ArrayList<>();
+        while (rs.next()) {
+            Product product = new Product(
+                    rs.getString("upc"),
+                    rs.getString("product_name"),
+                    rs.getDouble("price")
+            );
+            TransactionItem item = new TransactionItem(product, rs.getInt("quantity"));
+            items.add(item);
+        }
+        transactionData.put("items", items);
+
+        rs.close();
+        pstmt.close();
+
+        return transactionData;
+    }
+
+    // Get transaction history for reporting
+    public List<Map<String, Object>> getTransactionHistory(boolean includeVoided, boolean includeSuspended) throws SQLException {
+        StringBuilder sql = new StringBuilder("SELECT * FROM transactions WHERE 1=1");
+
+        if (!includeVoided) {
+            sql.append(" AND is_voided = FALSE");
+        }
+        if (!includeSuspended) {
+            sql.append(" AND (is_suspended = FALSE OR is_resumed = TRUE)");
+        }
+
+        sql.append(" ORDER BY transaction_date DESC");
+
+        Statement stmt = connection.createStatement();
+        ResultSet rs = stmt.executeQuery(sql.toString());
+
+        List<Map<String, Object>> transactions = new ArrayList<>();
+        while (rs.next()) {
+            Map<String, Object> trans = new HashMap<>();
+            trans.put("id", rs.getInt("id"));
+            trans.put("date", rs.getTimestamp("transaction_date"));
+            trans.put("subtotal", rs.getDouble("subtotal"));
+            trans.put("tax", rs.getDouble("tax"));
+            trans.put("total", rs.getDouble("total"));
+            trans.put("payment_type", rs.getString("payment_type"));
+            trans.put("is_voided", rs.getBoolean("is_voided"));
+            trans.put("is_suspended", rs.getBoolean("is_suspended"));
+            trans.put("is_resumed", rs.getBoolean("is_resumed"));
+            trans.put("is_completed", rs.getBoolean("is_completed"));
+            transactions.add(trans);
+        }
+
+        rs.close();
+        stmt.close();
+
+        return transactions;
     }
 
     public void close() {

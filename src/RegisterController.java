@@ -36,13 +36,16 @@ public class RegisterController {
                 return;
             }
 
+            // Create transaction if this is the first item
+            if (currentTransactionId == -1 && currentTransaction.isEmpty()) {
+                currentTransactionId = saveInitialTransaction();
+                journal.logTransactionStart(currentTransactionId);
+            }
+
             addOrUpdateTransactionItem(product, qty);
 
-            // Save to database immediately if we have a transaction ID
-            if (currentTransactionId == -1 && !currentTransaction.isEmpty()) {
-                // Create the transaction in the database
-                saveCurrentTransaction();
-            }
+            // Update database totals after adding item
+            updateTransactionInDatabase();
 
             refreshUI();
         } catch (SQLException e) {
@@ -51,33 +54,64 @@ public class RegisterController {
     }
 
     private void addOrUpdateTransactionItem(Product product, int qty) {
-        TransactionItem existingItem = findItemByUPC(product.getUpc());
+        try {
+            TransactionItem existingItem = findItemByUPC(product.getUpc());
 
-        if (existingItem != null) {
-            int oldQty = existingItem.getQuantity();
-            existingItem.addQuantity(qty);
-            journal.logQuantityChange(product.getUpc(), product.getName(),
-                    oldQty, existingItem.getQuantity());
-        } else {
-            currentTransaction.add(new TransactionItem(product, qty));
+            if (existingItem != null) {
+                // Item already exists, update quantity
+                int oldQty = existingItem.getQuantity();
+                existingItem.addQuantity(qty);
+
+                // Log to journal
+                journal.logQuantityChange(product.getUpc(), product.getName(),
+                        oldQty, existingItem.getQuantity());
+                journal.logItem(product.getUpc(), product.getName(),
+                        product.getPrice(), existingItem.getQuantity(), existingItem.getTotal());
+
+                // Update in database - mark old item as voided and add new with updated quantity
+                // This maintains history like the journal does
+                if (currentTransactionId != -1) {
+                    // Note: You might want to add a method to update item quantity directly
+                    // For now, we'll save the updated item
+                    dbManager.saveTransactionItem(currentTransactionId, existingItem);
+                }
+            } else {
+                // New item
+                TransactionItem newItem = new TransactionItem(product, qty);
+                currentTransaction.add(newItem);
+
+                // Log to journal
+                journal.logItem(product.getUpc(), product.getName(),
+                        product.getPrice(), qty, newItem.getTotal());
+
+                // Save to database
+                if (currentTransactionId != -1) {
+                    dbManager.saveTransactionItem(currentTransactionId, newItem);
+                }
+            }
+        } catch (SQLException e) {
+            ui.showError("Database error while adding item: " + e.getMessage());
         }
-
-        journal.logItem(product.getUpc(), product.getName(),
-                product.getPrice(), qty, product.getPrice() * qty);
     }
 
     public void voidItem(int index) {
         if (index >= 0 && index < currentTransaction.size()) {
             TransactionItem item = currentTransaction.get(index);
+
+            // Log to journal
             journal.logVoidItem(item.getProduct().getUpc(),
                     item.getProduct().getName(),
                     item.getQuantity());
+
+            // Remove from current transaction
             currentTransaction.remove(index);
 
-            // Update database if transaction exists
+            // Update database
             try {
                 if (currentTransactionId != -1) {
-                    updateTransactionTotals();
+                    // Note: You might want to add a method to mark item as voided in database
+                    // instead of removing it, to maintain audit trail
+                    updateTransactionInDatabase();
                 }
             } catch (SQLException e) {
                 ui.showError("Database error: " + e.getMessage());
@@ -92,14 +126,18 @@ public class RegisterController {
             TransactionItem item = currentTransaction.get(index);
             int oldQty = item.getQuantity();
             item.setQuantity(newQty);
+
+            // Log to journal
             journal.logQuantityChange(item.getProduct().getUpc(),
                     item.getProduct().getName(),
                     oldQty, newQty);
+            journal.logItem(item.getProduct().getUpc(), item.getProduct().getName(),
+                    item.getProduct().getPrice(), newQty, item.getTotal());
 
-            // Update database if transaction exists
+            // Update database
             try {
                 if (currentTransactionId != -1) {
-                    updateTransactionTotals();
+                    updateTransactionInDatabase();
                 }
             } catch (SQLException e) {
                 ui.showError("Database error: " + e.getMessage());
@@ -114,13 +152,17 @@ public class RegisterController {
             try {
                 // Ensure transaction is saved before voiding
                 if (currentTransactionId == -1) {
-                    saveCurrentTransaction();
+                    currentTransactionId = saveInitialTransaction();
                 }
 
-                // Void the transaction in database
-                dbManager.voidTransaction(currentTransactionId, "Voided by cashier");
+                // Log to journal
                 journal.logVoidTransaction(currentTransactionId);
+
+                // Void in database
+                dbManager.voidTransaction(currentTransactionId, "Voided by cashier");
+
                 ui.showMessage("Transaction #" + currentTransactionId + " has been voided");
+
                 // Clear current transaction and start fresh
                 currentTransaction.clear();
                 currentTransactionId = -1;
@@ -139,12 +181,19 @@ public class RegisterController {
             try {
                 // Save transaction if not already saved
                 if (currentTransactionId == -1) {
-                    saveCurrentTransaction();
+                    currentTransactionId = saveInitialTransaction();
+                    journal.logTransactionStart(currentTransactionId);
                 }
 
-                // Suspend the transaction
-                dbManager.suspendTransaction(currentTransactionId);
+                // Make sure all items and totals are saved
+                saveAllTransactionItems();
+                updateTransactionInDatabase();
+
+                // Log to journal
                 journal.logSuspendTransaction(currentTransactionId);
+
+                // Suspend in database
+                dbManager.suspendTransaction(currentTransactionId);
 
                 ui.showMessage("Transaction #" + currentTransactionId + " has been suspended");
 
@@ -204,7 +253,9 @@ public class RegisterController {
                 currentTransactionId = transactionId;
                 isResumedTransaction = true;
 
+                // Log to journal
                 journal.logResumeTransaction(transactionId);
+
                 refreshUI();
 
                 ui.showMessage("Transaction #" + transactionId + " resumed");
@@ -233,19 +284,25 @@ public class RegisterController {
                 return;
             }
 
-            // Ensure transaction is saved
+            // Ensure transaction is saved with all items
             if (currentTransactionId == -1) {
-                saveCurrentTransaction();
+                currentTransactionId = saveInitialTransaction();
+                journal.logTransactionStart(currentTransactionId);
+                saveAllTransactionItems();
             }
 
-            // Update payment information
-            dbManager.updateTransactionPayment(currentTransactionId, paymentType, tendered, change);
+            // Update totals one final time
+            updateTransactionInDatabase();
 
+            // Log to journal
             journal.logSubtotal(subtotal);
             journal.logTax(tax);
             journal.logTotal(total);
             journal.logPayment(paymentType, tendered, change);
             journal.logTransactionComplete(currentTransactionId);
+
+            // Update payment information in database
+            dbManager.updateTransactionPayment(currentTransactionId, paymentType, tendered, change);
 
             // Clear for next transaction
             currentTransaction.clear();
@@ -259,31 +316,34 @@ public class RegisterController {
         }
     }
 
-    private int saveCurrentTransaction() throws SQLException {
-        if (currentTransactionId == -1 && !currentTransaction.isEmpty()) {
-            double subtotal = getSubtotal();
-            double tax = getTax();
-            double total = getTotal();
+    private int saveInitialTransaction() throws SQLException {
+        double subtotal = getSubtotal();
+        double tax = getTax();
+        double total = getTotal();
 
-            currentTransactionId = dbManager.saveTransaction(subtotal, tax, total);
-            journal.logTransactionStart(currentTransactionId);
+        return dbManager.saveTransaction(subtotal, tax, total);
+    }
 
-            // Save all items
+    private void saveAllTransactionItems() throws SQLException {
+        if (currentTransactionId != -1) {
+            // Clear existing items for this transaction to avoid duplicates
+            // Note: You might want to add a method in DatabaseManager to clear items
+
+            // Save all current items
             for (TransactionItem item : currentTransaction) {
                 dbManager.saveTransactionItem(currentTransactionId, item);
             }
         }
-        return currentTransactionId;
     }
 
-    private void updateTransactionTotals() throws SQLException {
+    private void updateTransactionInDatabase() throws SQLException {
         if (currentTransactionId != -1) {
             // Recalculate totals
             double subtotal = getSubtotal();
             double tax = getTax();
             double total = getTotal();
 
-            // Update transaction totals in database through DatabaseManager
+            // Update transaction totals in database
             dbManager.updateTransactionTotals(currentTransactionId, subtotal, tax, total);
         }
     }

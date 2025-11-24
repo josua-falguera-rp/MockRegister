@@ -24,6 +24,13 @@ public class Main {
 
         // Create and show UI
         SwingUtilities.invokeLater(() -> {
+            try {
+                // Set Look and Feel to allow custom colors
+                UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
             RegisterUI ui = new RegisterUI(controller);
             controller.setUI(ui);
             ui.setVisible(true);

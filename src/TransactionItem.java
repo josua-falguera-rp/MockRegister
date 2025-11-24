@@ -11,6 +11,10 @@ public class TransactionItem {
         this.quantity += qty;
     }
 
+    public void setQuantity(int quantity) {
+        this.quantity = quantity;
+    }
+
     public Product getProduct() {
         return product;
     }

@@ -193,7 +193,7 @@ public class RegisterUI extends JFrame {
     }
 
     private DefaultTableModel createTableModel() {
-        String[] columns = {"UPC", "Description", "Price", "QTY", "Subtotal per item"};
+        String[] columns = {"UPC", "Description", "Price", "QTY", "Total"};
         return new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -214,8 +214,8 @@ public class RegisterUI extends JFrame {
         panel.add(createActionButton("Suspend", BUTTON_YELLOW, e -> handleSuspendTransaction()));
         panel.add(createActionButton("Resume", BUTTON_YELLOW, e -> handleResumeTransaction()));
         panel.add(createActionButton("History", BUTTON_BLUE, e -> handleShowHistory()));
-        panel.add(createActionButton("Exact $", BUTTON_GREEN, e -> handleExactDollar()));
-        panel.add(createActionButton("Next $", BUTTON_GREEN, e -> handleNextDollar()));
+        panel.add(createPaymentButton("Cash", "CASH"));
+        panel.add(createPaymentButton("Card", "CREDIT"));
 
         return panel;
     }
@@ -244,8 +244,6 @@ public class RegisterUI extends JFrame {
         panel.add(createQtyInput());
 
         panel.add(createAddButton());
-        panel.add(createPaymentButton("Cash", "CASH"));
-        panel.add(createPaymentButton("Card", "CREDIT"));
 
         return panel;
     }
@@ -401,16 +399,114 @@ public class RegisterUI extends JFrame {
             return;
         }
 
-        String input = JOptionPane.showInputDialog(this,
-                "Total: $" + df.format(total) + "\nEnter amount tendered:");
+        if (paymentType.equals("CASH")) {
+            // Create custom dialog for cash payment with quick options
+            JDialog cashDialog = new JDialog(this, "Cash Payment", true);
+            cashDialog.setLayout(new BorderLayout());
+            cashDialog.setSize(400, 300);
+            cashDialog.setLocationRelativeTo(this);
 
-        if (input != null && !input.trim().isEmpty()) {
-            try {
-                double tendered = Double.parseDouble(input.trim());
-                controller.completeTransaction(paymentType, tendered);
-            } catch (NumberFormatException e) {
-                showError("Invalid amount");
-            }
+            // Top panel with total display
+            JPanel topPanel = new JPanel(new BorderLayout());
+            topPanel.setBackground(BACKGROUND_GRAY);
+            topPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+            JLabel totalDisplayLabel = new JLabel("Total: $" + df.format(total));
+            totalDisplayLabel.setFont(new Font("Arial", Font.BOLD, 24));
+            totalDisplayLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            topPanel.add(totalDisplayLabel, BorderLayout.CENTER);
+
+            // Middle panel with quick payment options
+            JPanel quickOptionsPanel = new JPanel(new GridLayout(2, 1, 10, 10));
+            quickOptionsPanel.setBackground(Color.WHITE);
+            quickOptionsPanel.setBorder(BorderFactory.createEmptyBorder(20, 40, 20, 40));
+
+            JButton exactButton = new JButton("Exact Amount - $" + df.format(total));
+            exactButton.setFont(new Font("Arial", Font.BOLD, 18));
+            exactButton.setBackground(BUTTON_GREEN);
+            exactButton.setFocusPainted(false);
+            exactButton.addActionListener(e -> {
+                cashDialog.dispose();
+                controller.completeTransaction("CASH", total);
+            });
+
+            double nextDollar = Math.ceil(total);
+            JButton nextDollarButton = new JButton("Next Dollar - $" + df.format(nextDollar));
+            nextDollarButton.setFont(new Font("Arial", Font.BOLD, 18));
+            nextDollarButton.setBackground(BUTTON_GREEN);
+            nextDollarButton.setFocusPainted(false);
+            nextDollarButton.addActionListener(e -> {
+                cashDialog.dispose();
+                controller.completeTransaction("CASH", nextDollar);
+            });
+
+            quickOptionsPanel.add(exactButton);
+            quickOptionsPanel.add(nextDollarButton);
+
+            // Bottom panel with custom amount option
+            JPanel customPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+            customPanel.setBackground(Color.WHITE);
+            customPanel.setBorder(BorderFactory.createTitledBorder("Custom Amount"));
+
+            JLabel customLabel = new JLabel("Enter amount:");
+            customLabel.setFont(new Font("Arial", Font.PLAIN, 16));
+
+            JTextField customAmount = new JTextField(10);
+            customAmount.setFont(new Font("Arial", Font.PLAIN, 16));
+            customAmount.setPreferredSize(new Dimension(120, 35));
+
+            JButton customButton = new JButton("Pay");
+            customButton.setFont(new Font("Arial", Font.BOLD, 16));
+            customButton.setBackground(BUTTON_BLUE);
+            customButton.setFocusPainted(false);
+            customButton.addActionListener(e -> {
+                try {
+                    double tendered = Double.parseDouble(customAmount.getText().trim());
+                    if (tendered >= total) {
+                        cashDialog.dispose();
+                        controller.completeTransaction("CASH", tendered);
+                    } else {
+                        JOptionPane.showMessageDialog(cashDialog,
+                                "Insufficient amount. Need at least $" + df.format(total),
+                                "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(cashDialog,
+                            "Invalid amount entered", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            });
+
+            // Allow Enter key to submit custom amount
+            customAmount.addActionListener(e -> customButton.doClick());
+
+            customPanel.add(customLabel);
+            customPanel.add(customAmount);
+            customPanel.add(customButton);
+
+            // Cancel button panel
+            JPanel cancelPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+            cancelPanel.setBackground(Color.WHITE);
+            JButton cancelButton = new JButton("Cancel");
+            cancelButton.setFont(new Font("Arial", Font.BOLD, 16));
+            cancelButton.setBackground(BUTTON_RED);
+            cancelButton.setFocusPainted(false);
+            cancelButton.addActionListener(e -> cashDialog.dispose());
+            cancelPanel.add(cancelButton);
+
+            // Combine bottom panels
+            JPanel bottomPanel = new JPanel(new BorderLayout());
+            bottomPanel.add(customPanel, BorderLayout.CENTER);
+            bottomPanel.add(cancelPanel, BorderLayout.SOUTH);
+
+            cashDialog.add(topPanel, BorderLayout.NORTH);
+            cashDialog.add(quickOptionsPanel, BorderLayout.CENTER);
+            cashDialog.add(bottomPanel, BorderLayout.SOUTH);
+
+            cashDialog.setVisible(true);
+
+        } else if (paymentType.equals("CREDIT")) {
+            // For credit card, process as exact amount automatically
+            controller.completeTransaction("CREDIT", total);
         }
     }
 

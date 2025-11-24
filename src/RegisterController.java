@@ -120,14 +120,12 @@ public class RegisterController {
                 // Void the transaction in database
                 dbManager.voidTransaction(currentTransactionId, "Voided by cashier");
                 journal.logVoidTransaction(currentTransactionId);
-
+                ui.showMessage("Transaction #" + currentTransactionId + " has been voided");
                 // Clear current transaction and start fresh
                 currentTransaction.clear();
                 currentTransactionId = -1;
                 isResumedTransaction = false;
                 refreshUI();
-
-                ui.showMessage("Transaction #" + currentTransactionId + " has been voided");
             } catch (SQLException e) {
                 ui.showError("Database error: " + e.getMessage());
             }

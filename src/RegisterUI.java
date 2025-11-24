@@ -46,7 +46,7 @@ public class RegisterUI extends JFrame {
     }
 
     private void setupFrame() {
-        setTitle("Mock Register - Enhanced with Transaction Management");
+        setTitle("Mock Register");
         setSize(WINDOW_WIDTH, WINDOW_HEIGHT);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);

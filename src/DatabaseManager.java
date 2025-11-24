@@ -163,6 +163,15 @@ public class DatabaseManager {
         return transactionId;
     }
 
+    // Clear all non-voided items for a transaction before re-saving
+    public void clearTransactionItems(int transactionId) throws SQLException {
+        String sql = "DELETE FROM transaction_items WHERE transaction_id = ? AND is_voided = FALSE";
+        PreparedStatement pstmt = connection.prepareStatement(sql);
+        pstmt.setInt(1, transactionId);
+        pstmt.executeUpdate();
+        pstmt.close();
+    }
+
     public void saveTransactionItem(int transactionId, TransactionItem item) throws SQLException {
         String sql = "INSERT INTO transaction_items (transaction_id, upc, product_name, price, quantity, total) VALUES (?, ?, ?, ?, ?, ?)";
         PreparedStatement pstmt = connection.prepareStatement(sql);
@@ -214,7 +223,8 @@ public class DatabaseManager {
     }
 
     public void suspendTransaction(int transactionId) throws SQLException {
-        String sql = "UPDATE transactions SET is_suspended = TRUE, suspend_date = CURRENT_TIMESTAMP WHERE id = ?";
+        // When suspending, reset the resumed flag so it can be resumed again
+        String sql = "UPDATE transactions SET is_suspended = TRUE, is_resumed = FALSE, suspend_date = CURRENT_TIMESTAMP WHERE id = ?";
         PreparedStatement pstmt = connection.prepareStatement(sql);
         pstmt.setInt(1, transactionId);
         pstmt.executeUpdate();
@@ -223,7 +233,9 @@ public class DatabaseManager {
 
     // Get suspended transactions that can be resumed
     public List<Integer> getSuspendedTransactions() throws SQLException {
-        String sql = "SELECT id FROM transactions WHERE is_suspended = TRUE AND is_resumed = FALSE ORDER BY id DESC";
+        // Get transactions that are currently suspended and not completed or voided
+        // Don't check is_resumed since a transaction can be suspended again after being resumed
+        String sql = "SELECT id FROM transactions WHERE is_suspended = TRUE AND is_completed = FALSE AND is_voided = FALSE ORDER BY id DESC";
         Statement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery(sql);
 
@@ -241,8 +253,8 @@ public class DatabaseManager {
     public Map<String, Object> resumeTransaction(int transactionId) throws SQLException {
         Map<String, Object> transactionData = new HashMap<>();
 
-        // First mark the transaction as resumed
-        String updateSql = "UPDATE transactions SET is_resumed = TRUE, resume_date = CURRENT_TIMESTAMP WHERE id = ?";
+        // Mark transaction as resumed and not suspended
+        String updateSql = "UPDATE transactions SET is_resumed = TRUE, is_suspended = FALSE, resume_date = CURRENT_TIMESTAMP WHERE id = ?";
         PreparedStatement pstmt = connection.prepareStatement(updateSql);
         pstmt.setInt(1, transactionId);
         pstmt.executeUpdate();
@@ -295,7 +307,7 @@ public class DatabaseManager {
             sql.append(" AND is_voided = FALSE");
         }
         if (!includeSuspended) {
-            sql.append(" AND (is_suspended = FALSE OR is_resumed = TRUE)");
+            sql.append(" AND (is_suspended = FALSE OR is_resumed = TRUE OR is_completed = TRUE)");
         }
 
         sql.append(" ORDER BY transaction_date DESC");

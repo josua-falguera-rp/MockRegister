@@ -21,13 +21,6 @@ public class RegisterController {
         this.ui = ui;
     }
 
-    public void startNewTransaction() {
-        currentTransaction.clear();
-        currentTransactionId = -1;
-        isResumedTransaction = false;
-        refreshUI();
-    }
-
     public void addItem(String upc, int qty) {
         try {
             Product product = dbManager.getProductByUPC(upc);
@@ -86,7 +79,7 @@ public class RegisterController {
                     item.getProduct().getName(),
                     item.getQuantity());
 
-            // Remove from current transaction
+            // Remove from the current transaction
             currentTransaction.remove(index);
 
             // Update database
@@ -384,14 +377,5 @@ public class RegisterController {
 
     public List<TransactionItem> getCurrentTransaction() {
         return new ArrayList<>(currentTransaction);
-    }
-
-    public List<Product> getQuickKeyProducts() {
-        try {
-            return dbManager.getQuickKeyProducts();
-        } catch (SQLException e) {
-            ui.showError("Database error: " + e.getMessage());
-            return new ArrayList<>();
-        }
     }
 }

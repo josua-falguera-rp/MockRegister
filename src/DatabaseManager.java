@@ -198,10 +198,6 @@ public class DatabaseManager {
         pstmt.close();
     }
 
-    public void voidTransaction(int transactionId) throws SQLException {
-        voidTransaction(transactionId, null);
-    }
-
     public void voidTransaction(int transactionId, String reason) throws SQLException {
         String sql = "UPDATE transactions SET is_voided = TRUE, void_date = CURRENT_TIMESTAMP, void_reason = ? WHERE id = ?";
         PreparedStatement pstmt = connection.prepareStatement(sql);

@@ -97,9 +97,9 @@ public class RegisterUI extends JFrame {
         panel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
         panel.setPreferredSize(new Dimension(0, 150));
 
-        subtotalLabel = createTotalLabel("SUBTOTAL");
-        taxLabel = createTotalLabel("TAX (7%)");
-        totalLabel = createTotalLabel("TOTAL");
+        subtotalLabel = createTotalLabel();
+        taxLabel = createTotalLabel();
+        totalLabel = createTotalLabel();
 
         panel.add(createTotalRow("SUBTOTAL:", subtotalLabel));
         panel.add(createTotalRow("TAX (7%):", taxLabel));
@@ -123,7 +123,7 @@ public class RegisterUI extends JFrame {
         return row;
     }
 
-    private JLabel createTotalLabel(String initialText) {
+    private JLabel createTotalLabel() {
         JLabel label = new JLabel("$0.00");
         label.setFont(new Font("Arial", Font.BOLD, 28));
         label.setHorizontalAlignment(SwingConstants.RIGHT);
@@ -371,27 +371,6 @@ public class RegisterUI extends JFrame {
         controller.showTransactionHistory();
     }
 
-    private void handleExactDollar() {
-        double total = controller.getTotal();
-        if (total <= 0) {
-            showError("No items in transaction");
-            return;
-        }
-
-        controller.completeTransaction("CASH", total);
-    }
-
-    private void handleNextDollar() {
-        double total = controller.getTotal();
-        if (total <= 0) {
-            showError("No items in transaction");
-            return;
-        }
-
-        double nextDollar = Math.ceil(total);
-        controller.completeTransaction("CASH", nextDollar);
-    }
-
     private void handlePayment(String paymentType) {
         double total = controller.getTotal();
         if (total <= 0) {
@@ -569,7 +548,7 @@ public class RegisterUI extends JFrame {
             data[i][2] = "$" + df.format(trans.get("total"));
             data[i][3] = trans.get("payment_type") != null ? trans.get("payment_type") : "-";
 
-            String status = "";
+            String status;
             if ((Boolean) trans.get("is_voided")) status = "VOIDED";
             else if ((Boolean) trans.get("is_suspended") && !(Boolean) trans.get("is_resumed")) status = "SUSPENDED";
             else if ((Boolean) trans.get("is_completed")) status = "COMPLETED";

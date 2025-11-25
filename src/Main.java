@@ -36,7 +36,7 @@ public class Main {
             ui.setVisible(true);
         });
 
-        // Add shutdown hook to close database and journal
+        // Shutdown hook to close database and journal
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             journal.close();
             dbManager.close();

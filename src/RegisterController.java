@@ -191,8 +191,6 @@ public class RegisterController {
                 journal.logSuspendTransaction(currentTransactionId);
                 dbManager.suspendTransaction(currentTransactionId);
 
-                ui.showMessage("Transaction #" + currentTransactionId + " has been suspended");
-
                 clearCurrentTransaction();
                 refreshUI();
             } catch (SQLException e) {

@@ -19,7 +19,6 @@ public class TransactionPanel extends JPanel {
     private static final Color ACCENT_BLUE = new Color(59, 130, 246);
     private static final Color ACCENT_RED = new Color(239, 68, 68);
     private static final Color ACCENT_ORANGE = new Color(251, 146, 60);
-    private static final Color ACCENT_PURPLE = new Color(168, 85, 247);
     private static final Color TEXT_PRIMARY = new Color(17, 24, 39);
     private static final Color TEXT_SECONDARY = new Color(107, 114, 128);
     private static final Color BORDER_COLOR = new Color(229, 231, 235);
@@ -470,11 +469,105 @@ public class TransactionPanel extends JPanel {
             showError("Please select an item to void");
             return;
         }
-        int confirm = JOptionPane.showConfirmDialog(this,
-                "Void selected item?", "Confirm Void", JOptionPane.YES_NO_OPTION);
+
+        // Get item details for confirmation
+        String upc = (String) tableModel.getValueAt(selectedRow, 0);
+        String desc = (String) tableModel.getValueAt(selectedRow, 1);
+        String qty = (String) tableModel.getValueAt(selectedRow, 3);
+        String total = (String) tableModel.getValueAt(selectedRow, 4);
+
+        // Create custom confirmation panel
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+
+        JLabel warningLabel = new JLabel("⚠️ Void Item", SwingConstants.CENTER);
+        warningLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        warningLabel.setForeground(ACCENT_RED);
+
+        JPanel detailsPanel = new JPanel(new GridLayout(4, 1, 5, 8));
+        detailsPanel.setBackground(Color.WHITE);
+        detailsPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER_COLOR, 1, true),
+                BorderFactory.createEmptyBorder(10, 10, 10, 10)
+        ));
+
+        detailsPanel.add(createDetailLabel("UPC: " + upc));
+        detailsPanel.add(createDetailLabel("Item: " + desc));
+        detailsPanel.add(createDetailLabel("Quantity: " + qty));
+        detailsPanel.add(createDetailLabel("Total: " + total));
+
+        JLabel questionLabel = new JLabel("Are you sure you want to void this item?");
+        questionLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        questionLabel.setForeground(TEXT_SECONDARY);
+        questionLabel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+
+        panel.add(warningLabel, BorderLayout.NORTH);
+        panel.add(detailsPanel, BorderLayout.CENTER);
+        panel.add(questionLabel, BorderLayout.SOUTH);
+
+        int confirm = JOptionPane.showConfirmDialog(this, panel,
+                "Confirm Void Item",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+
         if (confirm == JOptionPane.YES_OPTION) {
             controller.voidItem(selectedRow);
+            showToast("Item voided successfully", ACCENT_GREEN);
         }
+    }
+
+    /**
+     * Shows a toast notification at the bottom-right of the panel.
+     */
+    private void showToast(String message, Color backgroundColor) {
+        JWindow toast = new JWindow();
+        toast.setAlwaysOnTop(true);
+
+        JPanel toastPanel = new JPanel(new BorderLayout(10, 10));
+        toastPanel.setBackground(backgroundColor);
+        toastPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(backgroundColor.darker(), 2, true),
+                BorderFactory.createEmptyBorder(12, 16, 12, 16)
+        ));
+
+        JLabel icon = new JLabel("✓");
+        icon.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        icon.setForeground(Color.WHITE);
+
+        JLabel messageLabel = new JLabel(message);
+        messageLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        messageLabel.setForeground(Color.WHITE);
+
+        toastPanel.add(icon, BorderLayout.WEST);
+        toastPanel.add(messageLabel, BorderLayout.CENTER);
+
+        toast.add(toastPanel);
+        toast.pack();
+
+        // Position at bottom-right of this panel
+        Point panelLocation = this.getLocationOnScreen();
+        int x = panelLocation.x + this.getWidth() - toast.getWidth() - 30;
+        int y = panelLocation.y + this.getHeight() - toast.getHeight() - 30;
+        toast.setLocation(x, y);
+
+        toast.setOpacity(0.95f);
+        toast.setVisible(true);
+
+        // Auto-hide after 2.5 seconds
+        Timer timer = new Timer(2500, e -> {
+            toast.setVisible(false);
+            toast.dispose();
+        });
+        timer.setRepeats(false);
+        timer.start();
+    }
+
+    private JLabel createDetailLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        label.setForeground(TEXT_PRIMARY);
+        return label;
     }
 
     private void handleQuantityChange() {
@@ -483,17 +576,82 @@ public class TransactionPanel extends JPanel {
             showError("Please select an item");
             return;
         }
-        String input = JOptionPane.showInputDialog(this, "Enter new quantity:");
-        if (input != null && !input.trim().isEmpty()) {
-            try {
-                int newQty = Integer.parseInt(input.trim());
-                if (newQty > 0) {
-                    controller.changeQuantity(selectedRow, newQty);
-                } else {
-                    showError("Quantity must be greater than 0");
+
+        // Get current item details
+        String upc = (String) tableModel.getValueAt(selectedRow, 0);
+        String desc = (String) tableModel.getValueAt(selectedRow, 1);
+        String currentQty = (String) tableModel.getValueAt(selectedRow, 3);
+
+        // Create custom quantity change panel
+        JPanel panel = new JPanel(new BorderLayout(10, 15));
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+
+        JLabel titleLabel = new JLabel("📝 Change Quantity", SwingConstants.CENTER);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(ACCENT_BLUE);
+
+        // Item details panel
+        JPanel detailsPanel = new JPanel(new GridLayout(3, 1, 5, 8));
+        detailsPanel.setBackground(Color.WHITE);
+        detailsPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER_COLOR, 1, true),
+                BorderFactory.createEmptyBorder(10, 10, 10, 10)
+        ));
+
+        detailsPanel.add(createDetailLabel("UPC: " + upc));
+        detailsPanel.add(createDetailLabel("Item: " + desc));
+        detailsPanel.add(createDetailLabel("Current Quantity: " + currentQty));
+
+        // Input panel
+        JPanel inputPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        inputPanel.setBackground(Color.WHITE);
+
+        JLabel inputLabel = new JLabel("New Quantity:");
+        inputLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        inputLabel.setForeground(TEXT_PRIMARY);
+
+        JTextField qtyField = new JTextField(10);
+        qtyField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        qtyField.setText(currentQty);
+        qtyField.setPreferredSize(new Dimension(120, 35));
+        qtyField.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER_COLOR, 1, true),
+                BorderFactory.createEmptyBorder(5, 10, 5, 10)
+        ));
+        qtyField.selectAll(); // Pre-select text for easy overwrite
+
+        inputPanel.add(inputLabel);
+        inputPanel.add(qtyField);
+
+        panel.add(titleLabel, BorderLayout.NORTH);
+        panel.add(detailsPanel, BorderLayout.CENTER);
+        panel.add(inputPanel, BorderLayout.SOUTH);
+
+        // Show dialog
+        int result = JOptionPane.showConfirmDialog(this, panel,
+                "Change Quantity",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE);
+
+        if (result == JOptionPane.OK_OPTION) {
+            String input = qtyField.getText().trim();
+            if (!input.isEmpty()) {
+                try {
+                    int newQty = Integer.parseInt(input);
+                    if (newQty > 0) {
+                        int oldQty = Integer.parseInt(currentQty);
+                        controller.changeQuantity(selectedRow, newQty);
+
+                        // Show success toast with quantity change info
+                        String message = "Quantity changed: " + oldQty + " → " + newQty;
+                        showToast(message, ACCENT_BLUE);
+                    } else {
+                        showError("Quantity must be greater than 0");
+                    }
+                } catch (NumberFormatException e) {
+                    showError("Invalid quantity entered");
                 }
-            } catch (NumberFormatException e) {
-                showError("Invalid quantity");
             }
         }
     }
@@ -515,7 +673,51 @@ public class TransactionPanel extends JPanel {
             showError("No transaction to suspend");
             return;
         }
-        controller.suspendTransaction();
+
+        // Create custom confirmation panel
+        JPanel panel = new JPanel(new BorderLayout(10, 15));
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+
+        JLabel titleLabel = new JLabel("⏸️ Suspend Transaction", SwingConstants.CENTER);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(ACCENT_ORANGE);
+
+        // Transaction summary
+        JPanel summaryPanel = new JPanel(new GridLayout(3, 1, 5, 8));
+        summaryPanel.setBackground(Color.WHITE);
+        summaryPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER_COLOR, 1, true),
+                BorderFactory.createEmptyBorder(10, 10, 10, 10)
+        ));
+
+        int itemCount = controller.getCurrentTransaction().size();
+        double total = controller.getTotal();
+
+        summaryPanel.add(createDetailLabel("Items in transaction: " + itemCount));
+        summaryPanel.add(createDetailLabel("Total amount: $" + df.format(total)));
+        summaryPanel.add(createDetailLabel("Status: Transaction will be saved and can be resumed later"));
+
+        JLabel questionLabel = new JLabel("Do you want to suspend this transaction?");
+        questionLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        questionLabel.setForeground(TEXT_SECONDARY);
+        questionLabel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+
+        panel.add(titleLabel, BorderLayout.NORTH);
+        panel.add(summaryPanel, BorderLayout.CENTER);
+        panel.add(questionLabel, BorderLayout.SOUTH);
+
+        int confirm = JOptionPane.showConfirmDialog(this, panel,
+                "Confirm Suspend Transaction",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.PLAIN_MESSAGE);
+
+        if (confirm == JOptionPane.YES_OPTION) {
+            controller.suspendTransaction();
+
+            // Show success toast notification
+            showToast("Transaction suspended successfully", ACCENT_ORANGE);
+        }
     }
 
     private void handleResumeTransaction() {

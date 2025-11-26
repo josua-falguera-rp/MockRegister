@@ -314,4 +314,25 @@ public class DatabaseManager {
             System.err.println("Error closing database: " + e.getMessage());
         }
     }
+    // Note: You may need to add this helper method to DatabaseManager.java
+    // to get transaction details for the improved display:
+
+    public Map<String, Object> getTransactionById(int id) throws SQLException {
+        String sql = "SELECT * FROM transactions WHERE id = ?";
+        PreparedStatement pstmt = connection.prepareStatement(sql);
+        pstmt.setInt(1, id);
+        ResultSet rs = pstmt.executeQuery();
+
+        Map<String, Object> trans = null;
+        if (rs.next()) {
+            trans = new HashMap<>();
+            trans.put("id", rs.getInt("id"));
+            trans.put("date", rs.getTimestamp("transaction_date"));
+            trans.put("total", rs.getDouble("total"));
+        }
+
+        rs.close();
+        pstmt.close();
+        return trans;
+    }
 }

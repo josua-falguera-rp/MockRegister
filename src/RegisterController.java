@@ -1,5 +1,8 @@
+import java.awt.*;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.List;
+import javax.swing.*;
 
 public class RegisterController {
     private static final double TAX_RATE = 0.07;
@@ -140,22 +143,6 @@ public class RegisterController {
         }
     }
 
-    /**
-     * Manually triggers discount recalculation (can be called from UI).
-     */
-    public void applyDiscounts() {
-        recalculateDiscount();
-        refreshUI();
-
-        if (currentDiscount != null && currentDiscount.hasDiscount()) {
-            ui.showMessage("Discounts applied: " +
-                    String.join(", ", currentDiscount.getAppliedDiscounts()));
-        } else if (currentDiscount != null && currentDiscount.isSuccessful()) {
-            ui.showMessage("Could not apply discounts: " + currentDiscount.getMessage());
-        } else {
-            ui.showMessage("No discounts available for current items");
-        }
-    }
 
     public void voidTransaction() {
         if (!currentTransaction.isEmpty() || currentTransactionId != -1) {
@@ -166,7 +153,6 @@ public class RegisterController {
 
                 journal.logVoidTransaction(currentTransactionId);
                 dbManager.voidTransaction(currentTransactionId, "Voided by cashier");
-                ui.showMessage("Transaction #" + currentTransactionId + " has been voided");
 
                 clearCurrentTransaction();
                 refreshUI();
@@ -211,24 +197,120 @@ public class RegisterController {
             }
 
             if (!currentTransaction.isEmpty()) {
-                int confirm = ui.confirmDialog("Save current transaction before resuming?",
-                        "Current Transaction");
-                if (confirm == 0) {
+                // Create styled confirmation panel
+                JPanel confirmPanel = new JPanel(new BorderLayout(10, 15));
+                confirmPanel.setBackground(Color.WHITE);
+                confirmPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+
+                JLabel titleLabel = new JLabel("⚠️ Current Transaction Active", SwingConstants.CENTER);
+                titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+                titleLabel.setForeground(new Color(251, 146, 60)); // ACCENT_ORANGE
+
+                JPanel infoPanel = new JPanel(new GridLayout(2, 1, 5, 8));
+                infoPanel.setBackground(Color.WHITE);
+                infoPanel.setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(new Color(229, 231, 235), 1, true),
+                        BorderFactory.createEmptyBorder(10, 10, 10, 10)
+                ));
+
+                JLabel info1 = new JLabel("You have items in the current transaction.");
+                info1.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+                info1.setForeground(new Color(17, 24, 39));
+
+                JLabel info2 = new JLabel("Would you like to suspend it before resuming another?");
+                info2.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+                info2.setForeground(new Color(17, 24, 39));
+
+                infoPanel.add(info1);
+                infoPanel.add(info2);
+
+                confirmPanel.add(titleLabel, BorderLayout.NORTH);
+                confirmPanel.add(infoPanel, BorderLayout.CENTER);
+
+                int confirm = JOptionPane.showConfirmDialog(
+                        ui,
+                        confirmPanel,
+                        "Save Current Transaction?",
+                        JOptionPane.YES_NO_CANCEL_OPTION,
+                        JOptionPane.PLAIN_MESSAGE
+                );
+
+                if (confirm == JOptionPane.YES_OPTION) {
                     suspendTransaction();
-                } else if (confirm == 2) {
+                } else if (confirm == JOptionPane.CANCEL_OPTION || confirm == JOptionPane.CLOSED_OPTION) {
                     return;
                 }
             }
 
-            String[] options = suspendedIds.stream()
-                    .map(id -> "Transaction #" + id)
-                    .toArray(String[]::new);
+            // Create custom selection dialog
+            JPanel selectionPanel = new JPanel(new BorderLayout(10, 15));
+            selectionPanel.setBackground(Color.WHITE);
+            selectionPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
 
-            String selected = ui.showSelectionDialog("Select transaction to resume:",
-                    "Resume Transaction", options);
+            JLabel titleLabel = new JLabel("▶️ Resume Transaction", SwingConstants.CENTER);
+            titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+            titleLabel.setForeground(new Color(251, 146, 60)); // ACCENT_ORANGE
 
-            if (selected != null) {
-                int transactionId = Integer.parseInt(selected.replace("Transaction #", ""));
+            JLabel instructionLabel = new JLabel("Select a suspended transaction to resume:");
+            instructionLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            instructionLabel.setForeground(new Color(107, 114, 128)); // TEXT_SECONDARY
+            instructionLabel.setBorder(BorderFactory.createEmptyBorder(5, 0, 10, 0));
+
+            // Create list of transactions with details
+            DefaultListModel<String> listModel = new DefaultListModel<>();
+            java.text.DecimalFormat df = new java.text.DecimalFormat("#,##0.00");
+            java.text.SimpleDateFormat dateFormat = new java.text.SimpleDateFormat("MM/dd/yyyy HH:mm");
+
+            for (Integer id : suspendedIds) {
+                try {
+                    // Get transaction details for better display
+                    Map<String, Object> transData = dbManager.getTransactionById(id);
+                    if (transData != null) {
+                        double total = (Double) transData.get("total");
+                        java.util.Date date = (java.util.Date) transData.get("date");
+
+                        listModel.addElement(String.format("Transaction #%d - $%s - %s",
+                                id, df.format(total), dateFormat.format(date)));
+                    } else {
+                        listModel.addElement("Transaction #" + id);
+                    }
+                } catch (Exception e) {
+                    listModel.addElement("Transaction #" + id);
+                }
+            }
+
+            JList<String> transactionList = new JList<>(listModel);
+            transactionList.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            transactionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            transactionList.setSelectedIndex(0);
+            transactionList.setBorder(BorderFactory.createLineBorder(new Color(229, 231, 235), 1, true));
+            transactionList.setFixedCellHeight(40);
+
+            JScrollPane scrollPane = new JScrollPane(transactionList);
+            scrollPane.setPreferredSize(new Dimension(400, 200));
+            scrollPane.setBorder(BorderFactory.createLineBorder(new Color(229, 231, 235), 1, true));
+
+            JPanel contentPanel = new JPanel(new BorderLayout(10, 10));
+            contentPanel.setBackground(Color.WHITE);
+            contentPanel.add(instructionLabel, BorderLayout.NORTH);
+            contentPanel.add(scrollPane, BorderLayout.CENTER);
+
+            selectionPanel.add(titleLabel, BorderLayout.NORTH);
+            selectionPanel.add(contentPanel, BorderLayout.CENTER);
+
+            int result = JOptionPane.showConfirmDialog(
+                    ui,
+                    selectionPanel,
+                    "Resume Transaction",
+                    JOptionPane.OK_CANCEL_OPTION,
+                    JOptionPane.PLAIN_MESSAGE
+            );
+
+            if (result == JOptionPane.OK_OPTION && transactionList.getSelectedValue() != null) {
+                String selected = transactionList.getSelectedValue();
+                // Extract transaction ID from the formatted string
+                int transactionId = Integer.parseInt(selected.replaceAll("Transaction #(\\d+).*", "$1"));
+
                 Map<String, Object> transData = dbManager.resumeTransaction(transactionId);
 
                 currentTransaction.clear();
@@ -245,7 +327,6 @@ public class RegisterController {
                 recalculateDiscount();
 
                 refreshUI();
-                ui.showMessage("Transaction #" + transactionId + " resumed");
             }
         } catch (SQLException e) {
             ui.showError("Database error: " + e.getMessage());

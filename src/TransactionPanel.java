@@ -661,10 +661,74 @@ public class TransactionPanel extends JPanel {
             showError("No transaction to void");
             return;
         }
-        int confirm = JOptionPane.showConfirmDialog(this,
-                "Void entire transaction?", "Confirm Void Transaction", JOptionPane.YES_NO_OPTION);
+
+        // Create custom void transaction panel
+        JPanel panel = new JPanel(new BorderLayout(10, 15));
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+
+        JLabel titleLabel = new JLabel("🗑️ Void Transaction", SwingConstants.CENTER);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(ACCENT_RED);
+
+        // Transaction summary with proper row count
+        int itemCount = controller.getCurrentTransaction().size();
+        double subtotal = controller.getSubtotal();
+        double discount = controller.getDiscountAmount();
+        double total = controller.getTotal();
+
+        int rowCount = discount > 0 ? 4 : 3;
+        JPanel summaryPanel = new JPanel(new GridLayout(rowCount, 1, 5, 8));
+        summaryPanel.setBackground(Color.WHITE);
+        summaryPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER_COLOR, 1, true),
+                BorderFactory.createEmptyBorder(10, 10, 10, 10)
+        ));
+
+        summaryPanel.add(createDetailLabel("Items in transaction: " + itemCount));
+        summaryPanel.add(createDetailLabel("Subtotal: $" + df.format(subtotal)));
+        if (discount > 0) {
+            JLabel discountLabel = createDetailLabel("Discount: -$" + df.format(discount));
+            discountLabel.setForeground(DISCOUNT_GREEN);
+            summaryPanel.add(discountLabel);
+        }
+        summaryPanel.add(createDetailLabel("Total amount: $" + df.format(total)));
+
+        // Warning message
+        JPanel warningPanel = new JPanel(new BorderLayout());
+        warningPanel.setBackground(new Color(254, 242, 242)); // Light red background
+        warningPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ACCENT_RED, 1, true),
+                BorderFactory.createEmptyBorder(10, 10, 10, 10)
+        ));
+
+        JLabel warningLabel = new JLabel("<html><b>⚠️ Warning:</b> This action cannot be undone. The entire transaction will be voided and removed.</html>");
+        warningLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        warningLabel.setForeground(new Color(127, 29, 29)); // Dark red text
+        warningPanel.add(warningLabel);
+
+        JLabel questionLabel = new JLabel("Are you sure you want to void this transaction?");
+        questionLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        questionLabel.setForeground(TEXT_PRIMARY);
+        questionLabel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+
+        JPanel contentPanel = new JPanel(new BorderLayout(10, 10));
+        contentPanel.setBackground(Color.WHITE);
+        contentPanel.add(summaryPanel, BorderLayout.NORTH);
+        contentPanel.add(warningPanel, BorderLayout.CENTER);
+        contentPanel.add(questionLabel, BorderLayout.SOUTH);
+
+        panel.add(titleLabel, BorderLayout.NORTH);
+        panel.add(contentPanel, BorderLayout.CENTER);
+
+        int confirm = JOptionPane.showConfirmDialog(this, panel,
+                "Confirm Void Transaction",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+
         if (confirm == JOptionPane.YES_OPTION) {
             controller.voidTransaction();
+            showToast("Transaction voided successfully", ACCENT_RED);
         }
     }
 

@@ -140,6 +140,23 @@ public class RegisterController {
         }
     }
 
+    /**
+     * Manually triggers discount recalculation (can be called from UI).
+     */
+    public void applyDiscounts() {
+        recalculateDiscount();
+        refreshUI();
+
+        if (currentDiscount != null && currentDiscount.hasDiscount()) {
+            ui.showMessage("Discounts applied: " +
+                    String.join(", ", currentDiscount.getAppliedDiscounts()));
+        } else if (currentDiscount != null && currentDiscount.isSuccessful()) {
+            ui.showMessage("Could not apply discounts: " + currentDiscount.getMessage());
+        } else {
+            ui.showMessage("No discounts available for current items");
+        }
+    }
+
     public void voidTransaction() {
         if (!currentTransaction.isEmpty() || currentTransactionId != -1) {
             try {
@@ -173,6 +190,8 @@ public class RegisterController {
                 updateTransactionInDatabase();
                 journal.logSuspendTransaction(currentTransactionId);
                 dbManager.suspendTransaction(currentTransactionId);
+
+                ui.showMessage("Transaction #" + currentTransactionId + " has been suspended");
 
                 clearCurrentTransaction();
                 refreshUI();

@@ -8,7 +8,7 @@ public class DiscountService {
 
     private final DiscountApiClient apiClient;
     private final ApiConfig config;
-    private boolean lastCallSuccessful = true;
+    private boolean lastCallSuccessful;
 
     public DiscountService(ApiConfig config) {
         this.config = config;
@@ -45,34 +45,6 @@ public class DiscountService {
             double subtotal = calculateSubtotal(items);
             return DiscountResult.fallback(subtotal, e.getMessage());
         }
-    }
-
-    /**
-     * Checks if the discount API is currently available.
-     */
-    public boolean isApiAvailable() {
-        return config.isEnabled() && apiClient.isApiAvailable();
-    }
-
-    /**
-     * Returns whether the last API call was successful.
-     */
-    public boolean isLastCallSuccessful() {
-        return lastCallSuccessful;
-    }
-
-    /**
-     * Enables or disables the discount service.
-     */
-    public void setEnabled(boolean enabled) {
-        config.setEnabled(enabled);
-    }
-
-    /**
-     * Checks if the service is enabled.
-     */
-    public boolean isEnabled() {
-        return config.isEnabled();
     }
 
     /**
@@ -125,10 +97,6 @@ public class DiscountService {
             return new DiscountResult(response, Status.NO_ITEMS, "No items in transaction");
         }
 
-        public DiscountResponse getResponse() {
-            return response;
-        }
-
         public Status getStatus() {
             return status;
         }
@@ -138,23 +106,15 @@ public class DiscountService {
         }
 
         public boolean isSuccessful() {
-            return status == Status.SUCCESS;
+            return status != Status.SUCCESS;
         }
 
         public boolean hasDiscount() {
             return response != null && response.hasDiscounts();
         }
 
-        public double getOriginalTotal() {
-            return response != null ? response.getOriginalTotal() : 0;
-        }
-
         public double getDiscountAmount() {
             return response != null ? response.getDiscountAmount() : 0;
-        }
-
-        public double getFinalTotal() {
-            return response != null ? response.getFinalTotal() : 0;
         }
 
         public List<String> getAppliedDiscounts() {

@@ -25,16 +25,6 @@ public class RegisterController {
         this.discountService = new DiscountService(apiConfig);
     }
 
-    /**
-     * Alternative constructor with custom API configuration.
-     */
-    public RegisterController(DatabaseManager dbManager, VirtualJournal journal, ApiConfig apiConfig) {
-        this.dbManager = dbManager;
-        this.journal = journal;
-        this.currentTransaction = new ArrayList<>();
-        this.discountService = new DiscountService(apiConfig);
-    }
-
     public void setUI(RegisterUI ui) {
         this.ui = ui;
     }
@@ -144,7 +134,7 @@ public class RegisterController {
         currentDiscount = discountService.calculateDiscount(currentTransaction);
 
         // Log discount status if there's an issue
-        if (!currentDiscount.isSuccessful() &&
+        if (currentDiscount.isSuccessful() &&
                 currentDiscount.getStatus() == DiscountService.DiscountResult.Status.FALLBACK) {
             System.out.println("Discount API fallback: " + currentDiscount.getMessage());
         }
@@ -160,7 +150,7 @@ public class RegisterController {
         if (currentDiscount != null && currentDiscount.hasDiscount()) {
             ui.showMessage("Discounts applied: " +
                     String.join(", ", currentDiscount.getAppliedDiscounts()));
-        } else if (currentDiscount != null && !currentDiscount.isSuccessful()) {
+        } else if (currentDiscount != null && currentDiscount.isSuccessful()) {
             ui.showMessage("Could not apply discounts: " + currentDiscount.getMessage());
         } else {
             ui.showMessage("No discounts available for current items");
@@ -434,21 +424,5 @@ public class RegisterController {
 
     public List<TransactionItem> getCurrentTransaction() {
         return new ArrayList<>(currentTransaction);
-    }
-
-    public DiscountService getDiscountService() {
-        return discountService;
-    }
-
-    public boolean hasActiveDiscount() {
-        return currentDiscount != null && currentDiscount.hasDiscount();
-    }
-
-    public int getCurrentTransactionId() {
-        return currentTransactionId;
-    }
-
-    public boolean isResumedTransaction() {
-        return isResumedTransaction;
     }
 }

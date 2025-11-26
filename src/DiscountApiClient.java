@@ -128,7 +128,7 @@ public class DiscountApiClient {
             response.setOriginalTotal(extractDouble(json, "originalTotal"));
             response.setDiscountAmount(extractDouble(json, "discountAmount"));
             response.setFinalTotal(extractDouble(json, "finalTotal"));
-            response.setAppliedDiscounts(extractStringList(json, "appliedDiscounts"));
+            response.setAppliedDiscounts(extractStringList(json));
 
             return response;
         } catch (Exception e) {
@@ -159,9 +159,9 @@ public class DiscountApiClient {
     /**
      * Extracts a string list from JSON array.
      */
-    private List<String> extractStringList(String json, String key) {
+    private List<String> extractStringList(String json) {
         List<String> result = new ArrayList<>();
-        String pattern = "\"" + key + "\":";
+        String pattern = "\"" + "appliedDiscounts" + "\":";
         int start = json.indexOf(pattern);
         if (start == -1) return result;
 

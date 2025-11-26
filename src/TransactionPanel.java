@@ -27,7 +27,6 @@ public class TransactionPanel extends JPanel {
 
     // UI Elements
     private JLabel subtotalLabel;
-    private JLabel discountLabel;
     private JLabel discountAmountLabel;
     private JLabel taxLabel;
     private JLabel totalLabel;
@@ -38,7 +37,6 @@ public class TransactionPanel extends JPanel {
     private JTable itemTable;
     private JPanel quickKeysPanel;
     private JPanel discountPanel;
-    private JButton payButton;
 
     public TransactionPanel(RegisterController controller, Runnable onPaymentRequested) {
         this.controller = controller;
@@ -99,7 +97,7 @@ public class TransactionPanel extends JPanel {
         // Discount row (initially hidden)
         discountPanel = new JPanel(new BorderLayout());
         discountPanel.setBackground(BACKGROUND_GRAY);
-        discountLabel = new JLabel("DISCOUNT:");
+        JLabel discountLabel = new JLabel("DISCOUNT:");
         discountLabel.setFont(new Font("Arial", Font.BOLD, 28));
         discountLabel.setForeground(DISCOUNT_GREEN);
         discountAmountLabel = new JLabel("-$0.00");
@@ -228,7 +226,7 @@ public class TransactionPanel extends JPanel {
         panel.add(createActionButton("History", BUTTON_BLUE, e -> handleShowHistory()));
 
         // Pay button - prominent green button
-        payButton = createActionButton("PAY", BUTTON_GREEN, e -> handlePayment());
+        JButton payButton = createActionButton("PAY", BUTTON_GREEN, e -> handlePayment());
         payButton.setFont(new Font("Arial", Font.BOLD, 20));
         panel.add(payButton);
 

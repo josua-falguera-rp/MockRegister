@@ -8,9 +8,6 @@ public class DiscountProductDTO {
     private String name;
     private double price;
 
-    public DiscountProductDTO() {
-    }
-
     public DiscountProductDTO(String upc, String name, double price) {
         this.upc = upc;
         this.name = name;
@@ -32,24 +29,12 @@ public class DiscountProductDTO {
         return upc;
     }
 
-    public void setUpc(String upc) {
-        this.upc = upc;
-    }
-
     public String getName() {
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
     public double getPrice() {
         return price;
-    }
-
-    public void setPrice(double price) {
-        this.price = price;
     }
 
     @Override

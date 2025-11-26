@@ -25,7 +25,6 @@ public class PaymentPanel extends JPanel {
 
     // UI Elements
     private DefaultTableModel summaryTableModel;
-    private JTable summaryTable;
     private JLabel subtotalValueLabel;
     private JLabel discountValueLabel;
     private JLabel taxValueLabel;
@@ -110,7 +109,7 @@ public class PaymentPanel extends JPanel {
             }
         };
 
-        summaryTable = new JTable(summaryTableModel);
+        JTable summaryTable = new JTable(summaryTableModel);
         summaryTable.setFont(new Font("Arial", Font.PLAIN, 14));
         summaryTable.setRowHeight(28);
         summaryTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
@@ -142,7 +141,7 @@ public class PaymentPanel extends JPanel {
         discountRow.setVisible(false);
         discountValueLabel = (JLabel) discountRow.getComponent(1);
         discountValueLabel.setForeground(DISCOUNT_GREEN);
-        ((JLabel) discountRow.getComponent(0)).setForeground(DISCOUNT_GREEN);
+        discountRow.getComponent(0).setForeground(DISCOUNT_GREEN);
         panel.add(discountRow);
 
         // Tax row
@@ -445,7 +444,7 @@ public class PaymentPanel extends JPanel {
 
         for (TransactionItem item : items) {
             Object[] row = {
-                    truncate(item.getProduct().getName(), 35),
+                    truncate(item.getProduct().getName()),
                     item.getQuantity(),
                     "$" + df.format(item.getTotal())
             };
@@ -477,8 +476,8 @@ public class PaymentPanel extends JPanel {
         JOptionPane.showMessageDialog(this, message, "Error", JOptionPane.ERROR_MESSAGE);
     }
 
-    private String truncate(String text, int maxLength) {
-        if (text.length() <= maxLength) return text;
-        return text.substring(0, maxLength - 3) + "...";
+    private String truncate(String text) {
+        if (text.length() <= 35) return text;
+        return text.substring(0, 35 - 3) + "...";
     }
 }

@@ -9,9 +9,6 @@ public class DiscountRequest {
 
     private List<DiscountItemDTO> items;
 
-    public DiscountRequest() {
-    }
-
     public DiscountRequest(List<DiscountItemDTO> items) {
         this.items = items;
     }
@@ -28,10 +25,6 @@ public class DiscountRequest {
 
     public List<DiscountItemDTO> getItems() {
         return items;
-    }
-
-    public void setItems(List<DiscountItemDTO> items) {
-        this.items = items;
     }
 
     @Override

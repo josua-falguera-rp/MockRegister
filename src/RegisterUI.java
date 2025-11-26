@@ -211,13 +211,6 @@ public class RegisterUI extends JFrame {
         return paymentPanel.isVisible() && !transactionPanel.isVisible();
     }
 
-    /**
-     * Gets the transaction panel (for scanner input handling).
-     */
-    public TransactionPanel getTransactionPanel() {
-        return transactionPanel;
-    }
-
     // ==================== Scanner Key Event Dispatcher ====================
 
     private class ScannerKeyEventDispatcher implements KeyEventDispatcher {

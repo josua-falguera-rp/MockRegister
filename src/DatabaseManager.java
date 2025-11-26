@@ -116,34 +116,6 @@ public class DatabaseManager {
         return product;
     }
 
-    public void setQuickKey(String upc, int position) throws SQLException {
-        String sql = "UPDATE products SET is_quick_key = TRUE, quick_key_position = ? WHERE upc = ?";
-        PreparedStatement pstmt = connection.prepareStatement(sql);
-        pstmt.setInt(1, position);
-        pstmt.setString(2, upc);
-        pstmt.executeUpdate();
-        pstmt.close();
-    }
-
-    public List<Product> getQuickKeyProducts() throws SQLException {
-        String sql = "SELECT * FROM products WHERE is_quick_key = TRUE ORDER BY quick_key_position";
-        Statement stmt = connection.createStatement();
-        ResultSet rs = stmt.executeQuery(sql);
-
-        List<Product> quickKeys = new ArrayList<>();
-        while (rs.next()) {
-            quickKeys.add(new Product(
-                    rs.getString("upc"),
-                    rs.getString("name"),
-                    rs.getDouble("price")
-            ));
-        }
-
-        rs.close();
-        stmt.close();
-        return quickKeys;
-    }
-
     public int saveTransaction(double subtotal, double tax, double total) throws SQLException {
         String sql = "INSERT INTO transactions (subtotal, tax, total) VALUES (?, ?, ?)";
         PreparedStatement pstmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);

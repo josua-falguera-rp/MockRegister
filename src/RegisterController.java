@@ -6,15 +6,33 @@ public class RegisterController {
 
     private final DatabaseManager dbManager;
     private final VirtualJournal journal;
+    private final DiscountService discountService;
     private final List<TransactionItem> currentTransaction;
     private RegisterUI ui;
     private int currentTransactionId = -1;
     private boolean isResumedTransaction = false;
 
+    // Cached discount result for current transaction
+    private DiscountService.DiscountResult currentDiscount = null;
+
     public RegisterController(DatabaseManager dbManager, VirtualJournal journal) {
         this.dbManager = dbManager;
         this.journal = journal;
         this.currentTransaction = new ArrayList<>();
+
+        // Initialize discount service with default config
+        ApiConfig apiConfig = new ApiConfig();
+        this.discountService = new DiscountService(apiConfig);
+    }
+
+    /**
+     * Alternative constructor with custom API configuration.
+     */
+    public RegisterController(DatabaseManager dbManager, VirtualJournal journal, ApiConfig apiConfig) {
+        this.dbManager = dbManager;
+        this.journal = journal;
+        this.currentTransaction = new ArrayList<>();
+        this.discountService = new DiscountService(apiConfig);
     }
 
     public void setUI(RegisterUI ui) {
@@ -29,16 +47,16 @@ public class RegisterController {
                 return;
             }
 
-            // Create transaction if this is the first item
             if (currentTransactionId == -1 && currentTransaction.isEmpty()) {
                 currentTransactionId = saveInitialTransaction();
                 journal.logTransactionStart(currentTransactionId);
             }
 
             addOrUpdateTransactionItem(product, qty);
-
-            // Update database totals and items after adding
             updateTransactionInDatabase();
+
+            // Recalculate discounts when items change
+            recalculateDiscount();
 
             refreshUI();
         } catch (SQLException e) {
@@ -50,21 +68,15 @@ public class RegisterController {
         TransactionItem existingItem = findItemByUPC(product.getUpc());
 
         if (existingItem != null) {
-            // Item already exists, update quantity
             int oldQty = existingItem.getQuantity();
             existingItem.addQuantity(qty);
-
-            // Log to journal
             journal.logQuantityChange(product.getUpc(), product.getName(),
                     oldQty, existingItem.getQuantity());
             journal.logItem(product.getUpc(), product.getName(),
                     product.getPrice(), existingItem.getQuantity(), existingItem.getTotal());
         } else {
-            // New item
             TransactionItem newItem = new TransactionItem(product, qty);
             currentTransaction.add(newItem);
-
-            // Log to journal
             journal.logItem(product.getUpc(), product.getName(),
                     product.getPrice(), qty, newItem.getTotal());
         }
@@ -73,16 +85,12 @@ public class RegisterController {
     public void voidItem(int index) {
         if (index >= 0 && index < currentTransaction.size()) {
             TransactionItem item = currentTransaction.get(index);
-
-            // Log to journal
             journal.logVoidItem(item.getProduct().getUpc(),
                     item.getProduct().getName(),
                     item.getQuantity());
 
-            // Remove from the current transaction
             currentTransaction.remove(index);
 
-            // Update database
             try {
                 if (currentTransactionId != -1) {
                     updateTransactionInDatabase();
@@ -90,6 +98,9 @@ public class RegisterController {
             } catch (SQLException e) {
                 ui.showError("Database error: " + e.getMessage());
             }
+
+            // Recalculate discounts when items change
+            recalculateDiscount();
 
             refreshUI();
         }
@@ -101,14 +112,11 @@ public class RegisterController {
             int oldQty = item.getQuantity();
             item.setQuantity(newQty);
 
-            // Log to journal
             journal.logQuantityChange(item.getProduct().getUpc(),
-                    item.getProduct().getName(),
-                    oldQty, newQty);
+                    item.getProduct().getName(), oldQty, newQty);
             journal.logItem(item.getProduct().getUpc(), item.getProduct().getName(),
                     item.getProduct().getPrice(), newQty, item.getTotal());
 
-            // Update database
             try {
                 if (currentTransactionId != -1) {
                     updateTransactionInDatabase();
@@ -117,30 +125,60 @@ public class RegisterController {
                 ui.showError("Database error: " + e.getMessage());
             }
 
+            // Recalculate discounts when quantity changes
+            recalculateDiscount();
+
             refreshUI();
+        }
+    }
+
+    /**
+     * Recalculates discounts for the current transaction.
+     */
+    private void recalculateDiscount() {
+        if (currentTransaction.isEmpty()) {
+            currentDiscount = null;
+            return;
+        }
+
+        currentDiscount = discountService.calculateDiscount(currentTransaction);
+
+        // Log discount status if there's an issue
+        if (!currentDiscount.isSuccessful() &&
+                currentDiscount.getStatus() == DiscountService.DiscountResult.Status.FALLBACK) {
+            System.out.println("Discount API fallback: " + currentDiscount.getMessage());
+        }
+    }
+
+    /**
+     * Manually triggers discount recalculation (can be called from UI).
+     */
+    public void applyDiscounts() {
+        recalculateDiscount();
+        refreshUI();
+
+        if (currentDiscount != null && currentDiscount.hasDiscount()) {
+            ui.showMessage("Discounts applied: " +
+                    String.join(", ", currentDiscount.getAppliedDiscounts()));
+        } else if (currentDiscount != null && !currentDiscount.isSuccessful()) {
+            ui.showMessage("Could not apply discounts: " + currentDiscount.getMessage());
+        } else {
+            ui.showMessage("No discounts available for current items");
         }
     }
 
     public void voidTransaction() {
         if (!currentTransaction.isEmpty()) {
             try {
-                // Ensure transaction is saved before voiding
                 if (currentTransactionId == -1) {
                     currentTransactionId = saveInitialTransaction();
                 }
 
-                // Log to journal
                 journal.logVoidTransaction(currentTransactionId);
-
-                // Void in database
                 dbManager.voidTransaction(currentTransactionId, "Voided by cashier");
-
                 ui.showMessage("Transaction #" + currentTransactionId + " has been voided");
 
-                // Clear current transaction and start fresh
-                currentTransaction.clear();
-                currentTransactionId = -1;
-                isResumedTransaction = false;
+                clearCurrentTransaction();
                 refreshUI();
             } catch (SQLException e) {
                 ui.showError("Database error: " + e.getMessage());
@@ -153,28 +191,19 @@ public class RegisterController {
     public void suspendTransaction() {
         if (!currentTransaction.isEmpty()) {
             try {
-                // Save transaction if not already saved
                 if (currentTransactionId == -1) {
                     currentTransactionId = saveInitialTransaction();
                     journal.logTransactionStart(currentTransactionId);
                 }
 
-                // Make sure all items and totals are saved
                 saveAllTransactionItems();
                 updateTransactionInDatabase();
-
-                // Log to journal
                 journal.logSuspendTransaction(currentTransactionId);
-
-                // Suspend in database
                 dbManager.suspendTransaction(currentTransactionId);
 
                 ui.showMessage("Transaction #" + currentTransactionId + " has been suspended");
 
-                // Clear current transaction to start a new one
-                currentTransaction.clear();
-                currentTransactionId = -1;
-                isResumedTransaction = false;
+                clearCurrentTransaction();
                 refreshUI();
             } catch (SQLException e) {
                 ui.showError("Database error: " + e.getMessage());
@@ -193,18 +222,16 @@ public class RegisterController {
                 return;
             }
 
-            // If there's a current transaction in progress, save it first
             if (!currentTransaction.isEmpty()) {
                 int confirm = ui.confirmDialog("Save current transaction before resuming?",
                         "Current Transaction");
-                if (confirm == 0) { // Yes
+                if (confirm == 0) {
                     suspendTransaction();
-                } else if (confirm == 2) { // Cancel
+                } else if (confirm == 2) {
                     return;
                 }
             }
 
-            // Show list of suspended transactions
             String[] options = suspendedIds.stream()
                     .map(id -> "Transaction #" + id)
                     .toArray(String[]::new);
@@ -214,11 +241,8 @@ public class RegisterController {
 
             if (selected != null) {
                 int transactionId = Integer.parseInt(selected.replace("Transaction #", ""));
-
-                // Resume the transaction
                 Map<String, Object> transData = dbManager.resumeTransaction(transactionId);
 
-                // Load the transaction items
                 currentTransaction.clear();
                 @SuppressWarnings("unchecked")
                 List<TransactionItem> items = (List<TransactionItem>) transData.get("items");
@@ -227,11 +251,12 @@ public class RegisterController {
                 currentTransactionId = transactionId;
                 isResumedTransaction = true;
 
-                // Log to journal
                 journal.logResumeTransaction(transactionId);
 
-                refreshUI();
+                // Recalculate discounts for resumed transaction
+                recalculateDiscount();
 
+                refreshUI();
                 ui.showMessage("Transaction #" + transactionId + " resumed");
             }
         } catch (SQLException e) {
@@ -248,9 +273,16 @@ public class RegisterController {
         }
 
         try {
+            // Ensure discounts are calculated
+            if (currentDiscount == null) {
+                recalculateDiscount();
+            }
+
             double subtotal = getSubtotal();
-            double tax = getTax();
-            double total = getTotal();
+            double discountAmount = getDiscountAmount();
+            double discountedSubtotal = subtotal - discountAmount;
+            double tax = discountedSubtotal * TAX_RATE;
+            double total = discountedSubtotal + tax;
             double change = tendered - total;
 
             if (change < 0) {
@@ -258,52 +290,56 @@ public class RegisterController {
                 return;
             }
 
-            // Ensure transaction is saved with all items
             if (currentTransactionId == -1) {
                 currentTransactionId = saveInitialTransaction();
                 journal.logTransactionStart(currentTransactionId);
             }
 
-            // Save or update all items one final time
             saveAllTransactionItems();
             updateTransactionInDatabase();
 
-            // Log to journal
+            // Log discount info to journal
             journal.logSubtotal(subtotal);
+            if (discountAmount > 0) {
+                journal.logDiscount(discountAmount, getAppliedDiscounts());
+            }
             journal.logTax(tax);
             journal.logTotal(total);
             journal.logPayment(paymentType, tendered, change);
             journal.logTransactionComplete(currentTransactionId);
 
-            // Update payment information in database
             dbManager.updateTransactionPayment(currentTransactionId, paymentType, tendered, change);
 
-            // Clear for next transaction
-            currentTransaction.clear();
-            currentTransactionId = -1;
-            isResumedTransaction = false;
-            refreshUI();
+            // Show payment complete with discount info
+            ui.showPaymentComplete(subtotal, discountAmount, tax, total, tendered, change);
 
-            ui.showPaymentComplete(total, tendered, change);
+            clearCurrentTransaction();
+            refreshUI();
         } catch (SQLException e) {
             ui.showError("Database error: " + e.getMessage());
         }
+    }
+
+    /**
+     * Clears current transaction state.
+     */
+    private void clearCurrentTransaction() {
+        currentTransaction.clear();
+        currentTransactionId = -1;
+        isResumedTransaction = false;
+        currentDiscount = null;
     }
 
     private int saveInitialTransaction() throws SQLException {
         double subtotal = getSubtotal();
         double tax = getTax();
         double total = getTotal();
-
         return dbManager.saveTransaction(subtotal, tax, total);
     }
 
     private void saveAllTransactionItems() throws SQLException {
         if (currentTransactionId != -1) {
-            // Clear existing non-voided items for this transaction to avoid duplicates
             dbManager.clearTransactionItems(currentTransactionId);
-
-            // Save all current items
             for (TransactionItem item : currentTransaction) {
                 dbManager.saveTransactionItem(currentTransactionId, item);
             }
@@ -312,10 +348,7 @@ public class RegisterController {
 
     private void updateTransactionInDatabase() throws SQLException {
         if (currentTransactionId != -1) {
-            // First save all items (clearing old ones to avoid duplicates)
             saveAllTransactionItems();
-
-            // Then update transaction totals
             double subtotal = getSubtotal();
             double tax = getTax();
             double total = getTotal();
@@ -343,9 +376,17 @@ public class RegisterController {
                     item.getTotal()
             );
         }
-        ui.updateTotals(getSubtotal(), getTax(), getTotal());
 
-        // Update UI to show transaction status
+        // Update totals with discount info
+        ui.updateTotals(getSubtotal(), getDiscountAmount(), getTax(), getTotal());
+
+        // Update discount status display
+        if (currentDiscount != null && currentDiscount.hasDiscount()) {
+            ui.setDiscountStatus(currentDiscount.getAppliedDiscounts());
+        } else {
+            ui.setDiscountStatus(null);
+        }
+
         if (currentTransactionId != -1) {
             String status = isResumedTransaction ? " (Resumed)" : "";
             ui.setTransactionStatus("Transaction #" + currentTransactionId + status);
@@ -361,21 +402,41 @@ public class RegisterController {
                 .orElse(null);
     }
 
+    // ==================== Getter Methods ====================
+
     public double getSubtotal() {
         return currentTransaction.stream()
                 .mapToDouble(TransactionItem::getTotal)
                 .sum();
     }
 
+    public double getDiscountAmount() {
+        return currentDiscount != null ? currentDiscount.getDiscountAmount() : 0.0;
+    }
+
+    public List<String> getAppliedDiscounts() {
+        return currentDiscount != null ? currentDiscount.getAppliedDiscounts() : List.of();
+    }
+
     public double getTax() {
-        return getSubtotal() * TAX_RATE;
+        double discountedSubtotal = getSubtotal() - getDiscountAmount();
+        return discountedSubtotal * TAX_RATE;
     }
 
     public double getTotal() {
-        return getSubtotal() + getTax();
+        double discountedSubtotal = getSubtotal() - getDiscountAmount();
+        return discountedSubtotal + getTax();
     }
 
     public List<TransactionItem> getCurrentTransaction() {
         return new ArrayList<>(currentTransaction);
+    }
+
+    public DiscountService getDiscountService() {
+        return discountService;
+    }
+
+    public boolean hasActiveDiscount() {
+        return currentDiscount != null && currentDiscount.hasDiscount();
     }
 }

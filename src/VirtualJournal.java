@@ -2,6 +2,7 @@ import java.io.*;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 
 public class VirtualJournal {
     private static final String JOURNAL_FILE = "register_journal.txt";
@@ -41,6 +42,17 @@ public class VirtualJournal {
     public void logSubtotal(double subtotal) {
         writeLine("");
         writeLine(String.format("%50s $%s", "SUBTOTAL:", df.format(subtotal)));
+    }
+
+    // Add this method to VirtualJournal.java (after logSubtotal method)
+
+    public void logDiscount(double discountAmount, List<String> appliedDiscounts) {
+        if (discountAmount > 0) {
+            writeLine(String.format("%50s -$%s", "DISCOUNT:", df.format(discountAmount)));
+            for (String discount : appliedDiscounts) {
+                writeLine(String.format("%50s   %s", "", discount));
+            }
+        }
     }
 
     public void logTax(double tax) {

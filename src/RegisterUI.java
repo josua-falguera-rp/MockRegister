@@ -16,7 +16,9 @@ public class RegisterUI extends JFrame {
     private static final Color BUTTON_RED = new Color(220, 100, 100);
     private static final Color BUTTON_BLUE = new Color(100, 150, 220);
     private static final Color BUTTON_YELLOW = new Color(255, 200, 100);
+    private static final Color BUTTON_PURPLE = new Color(180, 130, 220);
     private static final Color FLASH_GREEN = new Color(144, 238, 144, 100);
+    private static final Color DISCOUNT_GREEN = new Color(0, 150, 0);
 
     // Components
     private final RegisterController controller;
@@ -25,13 +27,17 @@ public class RegisterUI extends JFrame {
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("MM/dd HH:mm");
 
     private JLabel subtotalLabel;
+    private JLabel discountLabel;
+    private JLabel discountAmountLabel;
     private JLabel taxLabel;
     private JLabel totalLabel;
     private JLabel transactionStatusLabel;
+    private JLabel discountStatusLabel;
     private JTextField upcInput;
     private JTextField qtyInput;
     private JTable itemTable;
     private JPanel quickKeysPanel;
+    private JPanel discountPanel;
 
     public RegisterUI(RegisterController controller) {
         this.controller = controller;
@@ -67,14 +73,13 @@ public class RegisterUI extends JFrame {
         mainPanel.add(createBottomPanel(), BorderLayout.SOUTH);
 
         add(mainPanel);
-        updateTotals(0, 0, 0);
+        updateTotals(0, 0, 0, 0);
     }
 
     private JPanel createTopPanel() {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBackground(Color.WHITE);
 
-        // Add transaction status bar
         JPanel statusPanel = new JPanel(new BorderLayout());
         statusPanel.setBackground(new Color(240, 240, 240));
         statusPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
@@ -82,7 +87,13 @@ public class RegisterUI extends JFrame {
         transactionStatusLabel = new JLabel("");
         transactionStatusLabel.setFont(new Font("Arial", Font.BOLD, 16));
         transactionStatusLabel.setForeground(new Color(0, 100, 0));
+
+        discountStatusLabel = new JLabel("");
+        discountStatusLabel.setFont(new Font("Arial", Font.ITALIC, 14));
+        discountStatusLabel.setForeground(DISCOUNT_GREEN);
+
         statusPanel.add(transactionStatusLabel, BorderLayout.WEST);
+        statusPanel.add(discountStatusLabel, BorderLayout.EAST);
 
         panel.add(statusPanel, BorderLayout.NORTH);
         panel.add(createTotalsPanel(), BorderLayout.CENTER);
@@ -92,16 +103,31 @@ public class RegisterUI extends JFrame {
     }
 
     private JPanel createTotalsPanel() {
-        JPanel panel = new JPanel(new GridLayout(3, 1, 5, 5));
+        JPanel panel = new JPanel(new GridLayout(4, 1, 5, 5));
         panel.setBackground(BACKGROUND_GRAY);
         panel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
-        panel.setPreferredSize(new Dimension(0, 150));
+        panel.setPreferredSize(new Dimension(0, 200));
 
         subtotalLabel = createTotalLabel();
         taxLabel = createTotalLabel();
         totalLabel = createTotalLabel();
 
+        // Discount row (initially hidden)
+        discountPanel = new JPanel(new BorderLayout());
+        discountPanel.setBackground(BACKGROUND_GRAY);
+        discountLabel = new JLabel("DISCOUNT:");
+        discountLabel.setFont(new Font("Arial", Font.BOLD, 28));
+        discountLabel.setForeground(DISCOUNT_GREEN);
+        discountAmountLabel = new JLabel("-$0.00");
+        discountAmountLabel.setFont(new Font("Arial", Font.BOLD, 28));
+        discountAmountLabel.setForeground(DISCOUNT_GREEN);
+        discountAmountLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+        discountPanel.add(discountLabel, BorderLayout.WEST);
+        discountPanel.add(discountAmountLabel, BorderLayout.EAST);
+        discountPanel.setVisible(false);
+
         panel.add(createTotalRow("SUBTOTAL:", subtotalLabel));
+        panel.add(discountPanel);
         panel.add(createTotalRow("TAX (7%):", taxLabel));
         panel.add(createTotalRow("TOTAL:", totalLabel));
 
@@ -136,7 +162,6 @@ public class RegisterUI extends JFrame {
         quickKeysPanel.setPreferredSize(new Dimension(500, 0));
         quickKeysPanel.setBorder(BorderFactory.createTitledBorder("Quick Keys"));
 
-        // Add some default quick keys
         addQuickKey("041594904794", "Polar Pop 42oz", 8.91);
         addQuickKey("999999955678", "Hot Dog", 2.69);
         addQuickKey("999991218948", "Large Coffee", 2.19);
@@ -203,7 +228,7 @@ public class RegisterUI extends JFrame {
     }
 
     private JPanel createActionButtonsPanel() {
-        JPanel panel = new JPanel(new GridLayout(8, 1, 5, 10));
+        JPanel panel = new JPanel(new GridLayout(9, 1, 5, 8));
         panel.setBackground(Color.WHITE);
         panel.setPreferredSize(new Dimension(200, 0));
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -213,6 +238,7 @@ public class RegisterUI extends JFrame {
         panel.add(createActionButton("Void Trans", BUTTON_RED, e -> handleVoidTransaction()));
         panel.add(createActionButton("Suspend", BUTTON_YELLOW, e -> handleSuspendTransaction()));
         panel.add(createActionButton("Resume", BUTTON_YELLOW, e -> handleResumeTransaction()));
+        panel.add(createActionButton("Discounts", BUTTON_PURPLE, e -> handleApplyDiscounts()));
         panel.add(createActionButton("History", BUTTON_BLUE, e -> handleShowHistory()));
         panel.add(createPaymentButton("Cash", "CASH"));
         panel.add(createPaymentButton("Card", "CREDIT"));
@@ -233,16 +259,10 @@ public class RegisterUI extends JFrame {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 15));
         panel.setBackground(Color.WHITE);
 
-        panel.add(new JLabel("UPC:") {{
-            setFont(new Font("Arial", Font.PLAIN, 18));
-        }});
+        panel.add(new JLabel("UPC:") {{ setFont(new Font("Arial", Font.PLAIN, 18)); }});
         panel.add(createUpcInput());
-
-        panel.add(new JLabel("QTY:") {{
-            setFont(new Font("Arial", Font.PLAIN, 18));
-        }});
+        panel.add(new JLabel("QTY:") {{ setFont(new Font("Arial", Font.PLAIN, 18)); }});
         panel.add(createQtyInput());
-
         panel.add(createAddButton());
 
         return panel;
@@ -284,7 +304,7 @@ public class RegisterUI extends JFrame {
         return btn;
     }
 
-    // Event Handlers
+    // ==================== Event Handlers ====================
 
     private void handleAddItem() {
         String upc = upcInput.getText().trim();
@@ -292,10 +312,8 @@ public class RegisterUI extends JFrame {
             showError("Please enter a UPC code");
             return;
         }
-
         int qty = parseQuantity();
         if (qty <= 0) return;
-
         controller.addItem(upc, qty);
         clearInputs();
     }
@@ -306,11 +324,8 @@ public class RegisterUI extends JFrame {
             showError("Please select an item to void");
             return;
         }
-
         int confirm = JOptionPane.showConfirmDialog(this,
-                "Void selected item?", "Confirm Void",
-                JOptionPane.YES_NO_OPTION);
-
+                "Void selected item?", "Confirm Void", JOptionPane.YES_NO_OPTION);
         if (confirm == JOptionPane.YES_OPTION) {
             controller.voidItem(selectedRow);
         }
@@ -322,7 +337,6 @@ public class RegisterUI extends JFrame {
             showError("Please select an item");
             return;
         }
-
         String input = JOptionPane.showInputDialog(this, "Enter new quantity:");
         if (input != null && !input.trim().isEmpty()) {
             try {
@@ -343,12 +357,8 @@ public class RegisterUI extends JFrame {
             showError("No transaction to void");
             return;
         }
-
         int confirm = JOptionPane.showConfirmDialog(this,
-                "Void entire transaction?",
-                "Confirm Void Transaction",
-                JOptionPane.YES_NO_OPTION);
-
+                "Void entire transaction?", "Confirm Void Transaction", JOptionPane.YES_NO_OPTION);
         if (confirm == JOptionPane.YES_OPTION) {
             controller.voidTransaction();
         }
@@ -359,12 +369,19 @@ public class RegisterUI extends JFrame {
             showError("No transaction to suspend");
             return;
         }
-
         controller.suspendTransaction();
     }
 
     private void handleResumeTransaction() {
         controller.resumeTransaction();
+    }
+
+    private void handleApplyDiscounts() {
+        if (controller.getCurrentTransaction().isEmpty()) {
+            showError("No items in transaction");
+            return;
+        }
+        controller.applyDiscounts();
     }
 
     private void handleShowHistory() {
@@ -379,121 +396,130 @@ public class RegisterUI extends JFrame {
         }
 
         if (paymentType.equals("CASH")) {
-            // Create custom dialog for cash payment with quick options
-            JDialog cashDialog = new JDialog(this, "Cash Payment", true);
-            cashDialog.setLayout(new BorderLayout());
-            cashDialog.setSize(400, 300);
-            cashDialog.setLocationRelativeTo(this);
-
-            // Top panel with total display
-            JPanel topPanel = new JPanel(new BorderLayout());
-            topPanel.setBackground(BACKGROUND_GRAY);
-            topPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-
-            JLabel totalDisplayLabel = new JLabel("Total: $" + df.format(total));
-            totalDisplayLabel.setFont(new Font("Arial", Font.BOLD, 24));
-            totalDisplayLabel.setHorizontalAlignment(SwingConstants.CENTER);
-            topPanel.add(totalDisplayLabel, BorderLayout.CENTER);
-
-            // Middle panel with quick payment options
-            JPanel quickOptionsPanel = new JPanel(new GridLayout(2, 1, 10, 10));
-            quickOptionsPanel.setBackground(Color.WHITE);
-            quickOptionsPanel.setBorder(BorderFactory.createEmptyBorder(20, 40, 20, 40));
-
-            JButton exactButton = new JButton("Exact Amount - $" + df.format(total));
-            exactButton.setFont(new Font("Arial", Font.BOLD, 18));
-            exactButton.setBackground(BUTTON_GREEN);
-            exactButton.setFocusPainted(false);
-            exactButton.addActionListener(e -> {
-                cashDialog.dispose();
-                controller.completeTransaction("CASH", total);
-            });
-
-            double nextDollar = Math.ceil(total);
-            JButton nextDollarButton = new JButton("Next Dollar - $" + df.format(nextDollar));
-            nextDollarButton.setFont(new Font("Arial", Font.BOLD, 18));
-            nextDollarButton.setBackground(BUTTON_GREEN);
-            nextDollarButton.setFocusPainted(false);
-            nextDollarButton.addActionListener(e -> {
-                cashDialog.dispose();
-                controller.completeTransaction("CASH", nextDollar);
-            });
-
-            quickOptionsPanel.add(exactButton);
-            quickOptionsPanel.add(nextDollarButton);
-
-            // Bottom panel with custom amount option
-            JPanel customPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
-            customPanel.setBackground(Color.WHITE);
-            customPanel.setBorder(BorderFactory.createTitledBorder("Custom Amount"));
-
-            JLabel customLabel = new JLabel("Enter amount:");
-            customLabel.setFont(new Font("Arial", Font.PLAIN, 16));
-
-            JTextField customAmount = new JTextField(10);
-            customAmount.setFont(new Font("Arial", Font.PLAIN, 16));
-            customAmount.setPreferredSize(new Dimension(120, 35));
-
-            JButton customButton = new JButton("Pay");
-            customButton.setFont(new Font("Arial", Font.BOLD, 16));
-            customButton.setBackground(BUTTON_BLUE);
-            customButton.setFocusPainted(false);
-            customButton.addActionListener(e -> {
-                try {
-                    double tendered = Double.parseDouble(customAmount.getText().trim());
-                    if (tendered >= total) {
-                        cashDialog.dispose();
-                        controller.completeTransaction("CASH", tendered);
-                    } else {
-                        JOptionPane.showMessageDialog(cashDialog,
-                                "Insufficient amount. Need at least $" + df.format(total),
-                                "Error", JOptionPane.ERROR_MESSAGE);
-                    }
-                } catch (NumberFormatException ex) {
-                    JOptionPane.showMessageDialog(cashDialog,
-                            "Invalid amount entered", "Error", JOptionPane.ERROR_MESSAGE);
-                }
-            });
-
-            // Allow Enter key to submit custom amount
-            customAmount.addActionListener(e -> customButton.doClick());
-
-            customPanel.add(customLabel);
-            customPanel.add(customAmount);
-            customPanel.add(customButton);
-
-            // Cancel button panel
-            JPanel cancelPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-            cancelPanel.setBackground(Color.WHITE);
-            JButton cancelButton = new JButton("Cancel");
-            cancelButton.setFont(new Font("Arial", Font.BOLD, 16));
-            cancelButton.setBackground(BUTTON_RED);
-            cancelButton.setFocusPainted(false);
-            cancelButton.addActionListener(e -> cashDialog.dispose());
-            cancelPanel.add(cancelButton);
-
-            // Combine bottom panels
-            JPanel bottomPanel = new JPanel(new BorderLayout());
-            bottomPanel.add(customPanel, BorderLayout.CENTER);
-            bottomPanel.add(cancelPanel, BorderLayout.SOUTH);
-
-            cashDialog.add(topPanel, BorderLayout.NORTH);
-            cashDialog.add(quickOptionsPanel, BorderLayout.CENTER);
-            cashDialog.add(bottomPanel, BorderLayout.SOUTH);
-
-            cashDialog.setVisible(true);
-
+            showCashPaymentDialog(total);
         } else if (paymentType.equals("CREDIT")) {
-            // For credit card, process as exact amount automatically
             controller.completeTransaction("CREDIT", total);
         }
     }
 
-    // UI Update Methods
+    private void showCashPaymentDialog(double total) {
+        JDialog cashDialog = new JDialog(this, "Cash Payment", true);
+        cashDialog.setLayout(new BorderLayout());
+        cashDialog.setSize(450, 350);
+        cashDialog.setLocationRelativeTo(this);
 
-    public void addItemToTable(String upc, String description, double price, int qty, double total) {
-        Object[] row = {upc, truncate(description, 40), df.format(price),
-                String.valueOf(qty), df.format(total)};
+        // Top panel - show total with discount info
+        JPanel topPanel = new JPanel(new GridLayout(3, 1, 5, 5));
+        topPanel.setBackground(BACKGROUND_GRAY);
+        topPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+
+        double subtotal = controller.getSubtotal();
+        double discount = controller.getDiscountAmount();
+
+        JLabel subtotalDisplay = new JLabel("Subtotal: $" + df.format(subtotal));
+        subtotalDisplay.setFont(new Font("Arial", Font.PLAIN, 18));
+        subtotalDisplay.setHorizontalAlignment(SwingConstants.CENTER);
+
+        JLabel discountDisplay = new JLabel(discount > 0 ?
+                "Discount: -$" + df.format(discount) : "");
+        discountDisplay.setFont(new Font("Arial", Font.BOLD, 18));
+        discountDisplay.setForeground(DISCOUNT_GREEN);
+        discountDisplay.setHorizontalAlignment(SwingConstants.CENTER);
+
+        JLabel totalDisplay = new JLabel("Total: $" + df.format(total));
+        totalDisplay.setFont(new Font("Arial", Font.BOLD, 24));
+        totalDisplay.setHorizontalAlignment(SwingConstants.CENTER);
+
+        topPanel.add(subtotalDisplay);
+        topPanel.add(discountDisplay);
+        topPanel.add(totalDisplay);
+
+        // Quick payment options
+        JPanel quickOptionsPanel = new JPanel(new GridLayout(2, 1, 10, 10));
+        quickOptionsPanel.setBackground(Color.WHITE);
+        quickOptionsPanel.setBorder(BorderFactory.createEmptyBorder(15, 40, 15, 40));
+
+        JButton exactButton = new JButton("Exact Amount - $" + df.format(total));
+        exactButton.setFont(new Font("Arial", Font.BOLD, 18));
+        exactButton.setBackground(BUTTON_GREEN);
+        exactButton.setFocusPainted(false);
+        exactButton.addActionListener(e -> {
+            cashDialog.dispose();
+            controller.completeTransaction("CASH", total);
+        });
+
+        double nextDollar = Math.ceil(total);
+        JButton nextDollarButton = new JButton("Next Dollar - $" + df.format(nextDollar));
+        nextDollarButton.setFont(new Font("Arial", Font.BOLD, 18));
+        nextDollarButton.setBackground(BUTTON_GREEN);
+        nextDollarButton.setFocusPainted(false);
+        nextDollarButton.addActionListener(e -> {
+            cashDialog.dispose();
+            controller.completeTransaction("CASH", nextDollar);
+        });
+
+        quickOptionsPanel.add(exactButton);
+        quickOptionsPanel.add(nextDollarButton);
+
+        // Custom amount panel
+        JPanel customPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        customPanel.setBackground(Color.WHITE);
+        customPanel.setBorder(BorderFactory.createTitledBorder("Custom Amount"));
+
+        JTextField customAmount = new JTextField(10);
+        customAmount.setFont(new Font("Arial", Font.PLAIN, 16));
+        customAmount.setPreferredSize(new Dimension(120, 35));
+
+        JButton customButton = new JButton("Pay");
+        customButton.setFont(new Font("Arial", Font.BOLD, 16));
+        customButton.setBackground(BUTTON_BLUE);
+        customButton.setFocusPainted(false);
+        customButton.addActionListener(e -> {
+            try {
+                double tendered = Double.parseDouble(customAmount.getText().trim());
+                if (tendered >= total) {
+                    cashDialog.dispose();
+                    controller.completeTransaction("CASH", tendered);
+                } else {
+                    JOptionPane.showMessageDialog(cashDialog,
+                            "Insufficient amount. Need at least $" + df.format(total),
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(cashDialog,
+                        "Invalid amount entered", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        customAmount.addActionListener(e -> customButton.doClick());
+
+        customPanel.add(new JLabel("Enter amount:"));
+        customPanel.add(customAmount);
+        customPanel.add(customButton);
+
+        // Cancel button
+        JPanel cancelPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        cancelPanel.setBackground(Color.WHITE);
+        JButton cancelButton = new JButton("Cancel");
+        cancelButton.setFont(new Font("Arial", Font.BOLD, 16));
+        cancelButton.setBackground(BUTTON_RED);
+        cancelButton.setFocusPainted(false);
+        cancelButton.addActionListener(e -> cashDialog.dispose());
+        cancelPanel.add(cancelButton);
+
+        JPanel bottomPanel = new JPanel(new BorderLayout());
+        bottomPanel.add(customPanel, BorderLayout.CENTER);
+        bottomPanel.add(cancelPanel, BorderLayout.SOUTH);
+
+        cashDialog.add(topPanel, BorderLayout.NORTH);
+        cashDialog.add(quickOptionsPanel, BorderLayout.CENTER);
+        cashDialog.add(bottomPanel, BorderLayout.SOUTH);
+        cashDialog.setVisible(true);
+    }
+
+    // ==================== UI Update Methods ====================
+
+    public void addItemToTable(String upc, String desc, double price, int qty, double total) {
+        Object[] row = {upc, truncate(desc, 40), df.format(price), String.valueOf(qty), df.format(total)};
         tableModel.addRow(row);
     }
 
@@ -501,10 +527,32 @@ public class RegisterUI extends JFrame {
         tableModel.setRowCount(0);
     }
 
-    public void updateTotals(double subtotal, double tax, double total) {
+    /**
+     * Updates totals display with discount support.
+     */
+    public void updateTotals(double subtotal, double discount, double tax, double total) {
         subtotalLabel.setText("$" + df.format(subtotal));
         taxLabel.setText("$" + df.format(tax));
         totalLabel.setText("$" + df.format(total));
+
+        // Show/hide discount row
+        if (discount > 0) {
+            discountAmountLabel.setText("-$" + df.format(discount));
+            discountPanel.setVisible(true);
+        } else {
+            discountPanel.setVisible(false);
+        }
+    }
+
+    /**
+     * Sets the discount status display.
+     */
+    public void setDiscountStatus(List<String> appliedDiscounts) {
+        if (appliedDiscounts != null && !appliedDiscounts.isEmpty()) {
+            discountStatusLabel.setText("✓ " + String.join(", ", appliedDiscounts));
+        } else {
+            discountStatusLabel.setText("");
+        }
     }
 
     public void setTransactionStatus(String status) {
@@ -519,12 +567,23 @@ public class RegisterUI extends JFrame {
         JOptionPane.showMessageDialog(this, message, "Information", JOptionPane.INFORMATION_MESSAGE);
     }
 
-    public void showPaymentComplete(double total, double tendered, double change) {
-        String message = String.format(
-                "Payment Complete\n\nTotal: $%s\nTendered: $%s\nChange: $%s",
-                df.format(total), df.format(tendered), df.format(change)
-        );
-        JOptionPane.showMessageDialog(this, message, "Payment Complete",
+    /**
+     * Shows payment complete dialog with discount info.
+     */
+    public void showPaymentComplete(double subtotal, double discount, double tax,
+                                    double total, double tendered, double change) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Payment Complete\n\n");
+        sb.append(String.format("Subtotal: $%s\n", df.format(subtotal)));
+        if (discount > 0) {
+            sb.append(String.format("Discount: -$%s\n", df.format(discount)));
+        }
+        sb.append(String.format("Tax: $%s\n", df.format(tax)));
+        sb.append(String.format("Total: $%s\n\n", df.format(total)));
+        sb.append(String.format("Tendered: $%s\n", df.format(tendered)));
+        sb.append(String.format("Change: $%s", df.format(change)));
+
+        JOptionPane.showMessageDialog(this, sb.toString(), "Payment Complete",
                 JOptionPane.INFORMATION_MESSAGE);
     }
 
@@ -553,7 +612,6 @@ public class RegisterUI extends JFrame {
             else if ((Boolean) trans.get("is_suspended") && !(Boolean) trans.get("is_resumed")) status = "SUSPENDED";
             else if ((Boolean) trans.get("is_completed")) status = "COMPLETED";
             else status = "IN PROGRESS";
-
             data[i][4] = status;
         }
 
@@ -588,7 +646,6 @@ public class RegisterUI extends JFrame {
     private void flashUpcField(String upc) {
         upcInput.setText(upc);
         upcInput.setBackground(FLASH_GREEN);
-
         Timer timer = new Timer(200, evt -> {
             upcInput.setText("");
             upcInput.setBackground(Color.WHITE);
@@ -602,7 +659,7 @@ public class RegisterUI extends JFrame {
         return text.substring(0, maxLength - 3) + "...";
     }
 
-    // Scanner Key Event Dispatcher
+    // ==================== Scanner Key Event Dispatcher ====================
 
     private class ScannerKeyEventDispatcher implements KeyEventDispatcher {
         private static final long SCAN_TIMEOUT = 100;
@@ -612,49 +669,30 @@ public class RegisterUI extends JFrame {
         @Override
         public boolean dispatchKeyEvent(KeyEvent e) {
             if (e.getID() != KeyEvent.KEY_PRESSED) return false;
-
             long currentTime = System.currentTimeMillis();
-
-            if (isTimedOut(currentTime)) {
+            if (currentTime - lastKeyTime > SCAN_TIMEOUT && !scanBuffer.isEmpty()) {
                 scanBuffer.setLength(0);
             }
-
             lastKeyTime = currentTime;
-
             if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                return handleEnterKey();
+                if (!scanBuffer.isEmpty()) {
+                    String scannedUPC = scanBuffer.toString().trim();
+                    scanBuffer.setLength(0);
+                    SwingUtilities.invokeLater(() -> {
+                        controller.addItem(scannedUPC, 1);
+                        flashUpcField(scannedUPC);
+                        qtyInput.setText("1");
+                    });
+                    return true;
+                }
+                return false;
             }
-
-            return bufferCharacter(e.getKeyChar());
-        }
-
-        private boolean isTimedOut(long currentTime) {
-            return currentTime - lastKeyTime > SCAN_TIMEOUT && !scanBuffer.isEmpty();
-        }
-
-        private boolean handleEnterKey() {
-            if (!scanBuffer.isEmpty()) {
-                String scannedUPC = scanBuffer.toString().trim();
-                scanBuffer.setLength(0);
-                SwingUtilities.invokeLater(() -> processScan(scannedUPC));
-                return true;
-            }
-            return false;
-        }
-
-        private boolean bufferCharacter(char c) {
-            if (Character.isLetterOrDigit(c) || Character.isWhitespace(c) ||
-                    c == '-' || c == '_') {
+            char c = e.getKeyChar();
+            if (Character.isLetterOrDigit(c) || Character.isWhitespace(c) || c == '-' || c == '_') {
                 scanBuffer.append(c);
                 return true;
             }
             return false;
-        }
-
-        private void processScan(String upc) {
-            controller.addItem(upc, 1);
-            flashUpcField(upc);
-            qtyInput.setText("1");
         }
     }
 }

@@ -168,7 +168,7 @@ public class RegisterController {
     }
 
     public void voidTransaction() {
-        if (!currentTransaction.isEmpty()) {
+        if (!currentTransaction.isEmpty() || currentTransactionId != -1) {
             try {
                 if (currentTransactionId == -1) {
                     currentTransactionId = saveInitialTransaction();
@@ -266,6 +266,10 @@ public class RegisterController {
         }
     }
 
+    /**
+     * Completes the transaction with the specified payment.
+     * Called from PaymentPanel.
+     */
     public void completeTransaction(String paymentType, double tendered) {
         if (currentTransaction.isEmpty()) {
             ui.showError("No items in transaction");
@@ -298,7 +302,7 @@ public class RegisterController {
             saveAllTransactionItems();
             updateTransactionInDatabase();
 
-            // Log discount info to journal
+            // Log to journal
             journal.logSubtotal(subtotal);
             if (discountAmount > 0) {
                 journal.logDiscount(discountAmount, getAppliedDiscounts());
@@ -310,7 +314,7 @@ public class RegisterController {
 
             dbManager.updateTransactionPayment(currentTransactionId, paymentType, tendered, change);
 
-            // Show payment complete with discount info
+            // Show payment complete dialog
             ui.showPaymentComplete(subtotal, discountAmount, tax, total, tendered, change);
 
             clearCurrentTransaction();
@@ -438,5 +442,13 @@ public class RegisterController {
 
     public boolean hasActiveDiscount() {
         return currentDiscount != null && currentDiscount.hasDiscount();
+    }
+
+    public int getCurrentTransactionId() {
+        return currentTransactionId;
+    }
+
+    public boolean isResumedTransaction() {
+        return isResumedTransaction;
     }
 }

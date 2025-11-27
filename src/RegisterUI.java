@@ -176,30 +176,13 @@ public class RegisterUI extends JFrame {
     }
 
     public void showTransactionHistory(List<Map<String, Object>> history) {
-        String[] columns = {"ID", "Date", "Total", "Payment", "Status"};
-        Object[][] data = new Object[history.size()][5];
-
-        for (int i = 0; i < history.size(); i++) {
-            Map<String, Object> trans = history.get(i);
-            data[i][0] = trans.get("id");
-            data[i][1] = dateFormat.format(trans.get("date"));
-            data[i][2] = "$" + df.format(trans.get("total"));
-            data[i][3] = trans.get("payment_type") != null ? trans.get("payment_type") : "-";
-
-            String status;
-            if ((Boolean) trans.get("is_voided")) status = "VOIDED";
-            else if ((Boolean) trans.get("is_suspended") && !(Boolean) trans.get("is_resumed")) status = "SUSPENDED";
-            else if ((Boolean) trans.get("is_completed")) status = "COMPLETED";
-            else status = "IN PROGRESS";
-            data[i][4] = status;
+        Frame parentFrame = (Frame) SwingUtilities.getWindowAncestor(this);
+        if (parentFrame == null) {
+            parentFrame = JOptionPane.getFrameForComponent(this);
         }
 
-        JTable historyTable = new JTable(data, columns);
-        historyTable.setEnabled(false);
-        JScrollPane scrollPane = new JScrollPane(historyTable);
-        scrollPane.setPreferredSize(new Dimension(600, 400));
-
-        JOptionPane.showMessageDialog(this, scrollPane, "Transaction History", JOptionPane.PLAIN_MESSAGE);
+        TransactionHistoryDialog dialog = new TransactionHistoryDialog(parentFrame, history);
+        dialog.setVisible(true);
     }
 
     // ==================== Helper Methods ====================

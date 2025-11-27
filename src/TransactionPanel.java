@@ -72,7 +72,7 @@ public class TransactionPanel extends JPanel {
         JPanel topRow = new JPanel(new BorderLayout());
         topRow.setBackground(PRIMARY_BG);
 
-        JLabel titleLabel = new JLabel("New Transaction");
+        JLabel titleLabel = new JLabel("Transaction");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 32));
         titleLabel.setForeground(TEXT_PRIMARY);
 
@@ -96,13 +96,13 @@ public class TransactionPanel extends JPanel {
         // Subtotal Card
         container.add(createTotalCard("Subtotal", "$0.00", TEXT_SECONDARY, false));
 
+        // Tax Card
+        container.add(createTotalCard("Tax (7%)", "$0.00", TEXT_SECONDARY, false));
+
         // Discount Card (hidden initially)
         discountCard = createTotalCard("Discount", "-$0.00", DISCOUNT_GREEN, false);
         discountCard.setVisible(false);
         container.add(discountCard);
-
-        // Tax Card
-        container.add(createTotalCard("Tax (7%)", "$0.00", TEXT_SECONDARY, false));
 
         // Total Card (emphasized)
         container.add(createTotalCard("Total", "$0.00", ACCENT_GREEN, true));

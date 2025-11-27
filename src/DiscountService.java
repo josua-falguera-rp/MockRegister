@@ -27,7 +27,7 @@ public class DiscountService {
             return DiscountResult.noItems();
         }
 
-        if (!config.isEnabled()) {
+        if (config.isEnabled()) {
             return DiscountResult.disabled(calculateSubtotal(items));
         }
 

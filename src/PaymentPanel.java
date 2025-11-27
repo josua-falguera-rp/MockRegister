@@ -6,6 +6,7 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -20,7 +21,6 @@ public class PaymentPanel extends JPanel {
     private static final Color ACCENT_GREEN = new Color(16, 185, 129);
     private static final Color ACCENT_BLUE = new Color(59, 130, 246);
     private static final Color ACCENT_RED = new Color(239, 68, 68);
-    private static final Color ACCENT_ORANGE = new Color(251, 146, 60);
     private static final Color TEXT_PRIMARY = new Color(17, 24, 39);
     private static final Color TEXT_SECONDARY = new Color(107, 114, 128);
     private static final Color BORDER_COLOR = new Color(229, 231, 235);
@@ -464,7 +464,7 @@ public class PaymentPanel extends JPanel {
         labelsPanel.add(tenderedLabel);
         labelsPanel.add(changeLabel);
 
-        JLabel iconLabel = new JLabel("💵");
+        JLabel iconLabel = new JLabel();
         iconLabel.setFont(new Font("Segoe UI", Font.PLAIN, 36));
 
         changeDisplayPanel.add(iconLabel, BorderLayout.WEST);
@@ -551,7 +551,19 @@ public class PaymentPanel extends JPanel {
                 JOptionPane.PLAIN_MESSAGE);
 
         if (confirm == JOptionPane.YES_OPTION) {
+            // Capture transaction data BEFORE completing transaction
+            List<TransactionItem> items = new ArrayList<>(controller.getCurrentTransaction());
+            double subtotal = controller.getSubtotal();
+            double discount = controller.getDiscountAmount();
+            double tax = controller.getTax();
+            int transactionId = controller.getCurrentTransactionId();
+
+            // Complete the transaction (this clears the data)
             controller.completeTransaction("CASH", tendered);
+
+            // Show receipt with captured data
+            showReceipt("CASH", tendered, change, items, subtotal, discount, tax, total, transactionId);
+
             onPaymentComplete.run();
         }
 
@@ -680,7 +692,19 @@ public class PaymentPanel extends JPanel {
                 JOptionPane.PLAIN_MESSAGE);
 
         if (confirm == JOptionPane.YES_OPTION) {
+            // Capture transaction data BEFORE completing transaction
+            List<TransactionItem> items = new ArrayList<>(controller.getCurrentTransaction());
+            double subtotal = controller.getSubtotal();
+            double discount = controller.getDiscountAmount();
+            double tax = controller.getTax();
+            int transactionId = controller.getCurrentTransactionId();
+
+            // Complete the transaction (this clears the data)
             controller.completeTransaction("CREDIT", total);
+
+            // Show receipt with captured data
+            showReceipt("CREDIT", total, 0.0, items, subtotal, discount, tax, total, transactionId);
+
             onPaymentComplete.run();
         }
     }
@@ -715,6 +739,32 @@ public class PaymentPanel extends JPanel {
         }
     }
 
+    // ==================== Receipt Display ====================
+
+    private void showReceipt(String paymentType, double tendered, double change,
+                             List<TransactionItem> items, double subtotal, double discount,
+                             double tax, double total, int transactionId) {
+        Frame parentFrame = (Frame) SwingUtilities.getWindowAncestor(this);
+        if (parentFrame == null) {
+            parentFrame = JOptionPane.getFrameForComponent(this);
+        }
+
+        ReceiptDialog receiptDialog = new ReceiptDialog(
+                parentFrame,
+                transactionId,
+                items,
+                subtotal,
+                discount,
+                tax,
+                total,
+                paymentType,
+                tendered,
+                change
+        );
+
+        receiptDialog.setVisible(true);
+    }
+
     // ==================== Public Methods ====================
 
     public void refresh() {
@@ -724,7 +774,7 @@ public class PaymentPanel extends JPanel {
 
         for (TransactionItem item : items) {
             Object[] row = {
-                    truncate(item.getProduct().getName(), 35),
+                    truncate(item.getProduct().getName()),
                     item.getQuantity(),
                     "$" + df.format(item.getTotal())
             };
@@ -756,8 +806,8 @@ public class PaymentPanel extends JPanel {
         JOptionPane.showMessageDialog(this, message, "Error", JOptionPane.ERROR_MESSAGE);
     }
 
-    private String truncate(String text, int maxLength) {
-        if (text.length() <= maxLength) return text;
-        return text.substring(0, maxLength - 3) + "...";
+    private String truncate(String text) {
+        if (text.length() <= 35) return text;
+        return text.substring(0, 35 - 3) + "...";
     }
 }

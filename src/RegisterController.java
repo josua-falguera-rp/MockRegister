@@ -1,3 +1,5 @@
+// src/RegisterController.java
+
 import java.awt.*;
 import java.sql.SQLException;
 import java.util.*;
@@ -383,8 +385,8 @@ public class RegisterController {
 
             dbManager.updateTransactionPayment(currentTransactionId, paymentType, tendered, change);
 
-            // Show payment complete dialog
-            ui.showPaymentComplete(subtotal, discountAmount, tax, total, tendered, change);
+            // NOTE: Receipt display is now handled by PaymentPanel
+            // No longer showing payment complete dialog here
 
             clearCurrentTransaction();
             refreshUI();
@@ -503,5 +505,13 @@ public class RegisterController {
 
     public List<TransactionItem> getCurrentTransaction() {
         return new ArrayList<>(currentTransaction);
+    }
+
+    /**
+     * Returns the current transaction ID.
+     * Returns -1 if no transaction is active.
+     */
+    public int getCurrentTransactionId() {
+        return currentTransactionId;
     }
 }

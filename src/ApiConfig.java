@@ -29,24 +29,6 @@ public class ApiConfig {
     }
 
     /**
-     * Creates configuration with custom base URL.
-     */
-    public ApiConfig(String baseUrl) {
-        this();
-        this.baseUrl = baseUrl;
-    }
-
-    /**
-     * Creates configuration with all custom settings.
-     */
-    public ApiConfig(String baseUrl, int connectTimeout, int readTimeout) {
-        this.baseUrl = baseUrl;
-        this.connectTimeout = connectTimeout;
-        this.readTimeout = readTimeout;
-        this.enabled = true;
-    }
-
-    /**
      * Returns the full URL for the discount calculation endpoint.
      */
     public String getDiscountUrl() {
@@ -57,33 +39,18 @@ public class ApiConfig {
         return baseUrl;
     }
 
-    public void setBaseUrl(String baseUrl) {
-        this.baseUrl = baseUrl;
-    }
-
     public int getConnectTimeout() {
         return connectTimeout;
-    }
-
-    public void setConnectTimeout(int connectTimeout) {
-        this.connectTimeout = connectTimeout;
     }
 
     public int getReadTimeout() {
         return readTimeout;
     }
 
-    public void setReadTimeout(int readTimeout) {
-        this.readTimeout = readTimeout;
-    }
-
     public boolean isEnabled() {
-        return enabled;
+        return !enabled;
     }
 
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
 
     @Override
     public String toString() {

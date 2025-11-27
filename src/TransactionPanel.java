@@ -855,10 +855,6 @@ public class TransactionPanel extends JPanel {
         JOptionPane.showMessageDialog(this, message, "Error", JOptionPane.ERROR_MESSAGE);
     }
 
-    public void showMessage(String message) {
-        JOptionPane.showMessageDialog(this, message, "Information", JOptionPane.INFORMATION_MESSAGE);
-    }
-
     public JTextField getUpcInput() {
         return upcInput;
     }

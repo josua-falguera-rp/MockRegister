@@ -1,8 +1,6 @@
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
-import java.text.DecimalFormat;
-import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Map;
 
@@ -22,8 +20,6 @@ public class RegisterUI extends JFrame {
 
     // Components
     private final RegisterController controller;
-    private final DecimalFormat df = new DecimalFormat("#,##0.00");
-    private final SimpleDateFormat dateFormat = new SimpleDateFormat("MM/dd HH:mm");
 
     // Layout components
     private CardLayout cardLayout;
@@ -134,45 +130,6 @@ public class RegisterUI extends JFrame {
         } else {
             transactionPanel.showError(message);
         }
-    }
-
-    public void showMessage(String message) {
-        // Show on the currently visible panel
-        if (isPaymentViewVisible()) {
-            JOptionPane.showMessageDialog(paymentPanel, message, "Information", JOptionPane.INFORMATION_MESSAGE);
-        } else {
-            transactionPanel.showMessage(message);
-        }
-    }
-
-    /**
-     * Shows payment complete dialog.
-     * Now handled by PaymentPanel, but kept for backward compatibility.
-     */
-    public void showPaymentComplete(double subtotal, double discount, double tax,
-                                    double total, double tendered, double change) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Payment Complete\n\n");
-        sb.append(String.format("Subtotal: $%s\n", df.format(subtotal)));
-        if (discount > 0) {
-            sb.append(String.format("Discount: -$%s\n", df.format(discount)));
-        }
-        sb.append(String.format("Tax: $%s\n", df.format(tax)));
-        sb.append(String.format("Total: $%s\n\n", df.format(total)));
-        sb.append(String.format("Tendered: $%s\n", df.format(tendered)));
-        sb.append(String.format("Change: $%s", df.format(change)));
-
-        JOptionPane.showMessageDialog(this, sb.toString(), "Payment Complete",
-                JOptionPane.INFORMATION_MESSAGE);
-    }
-
-    public int confirmDialog(String message, String title) {
-        return JOptionPane.showConfirmDialog(this, message, title, JOptionPane.YES_NO_CANCEL_OPTION);
-    }
-
-    public String showSelectionDialog(String message, String title, String[] options) {
-        return (String) JOptionPane.showInputDialog(this, message, title,
-                JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
     }
 
     public void showTransactionHistory(List<Map<String, Object>> history) {

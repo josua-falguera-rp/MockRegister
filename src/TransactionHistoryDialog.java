@@ -30,7 +30,6 @@ public class TransactionHistoryDialog extends JDialog {
     private final DecimalFormat df = new DecimalFormat("#,##0.00");
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("MM/dd/yyyy HH:mm");
 
-    private JTable historyTable;
     private DefaultTableModel tableModel;
 
     public TransactionHistoryDialog(Frame parent, List<Map<String, Object>> history) {
@@ -123,7 +122,7 @@ public class TransactionHistoryDialog extends JDialog {
         }
 
         // Create styled table
-        historyTable = createStyledTable();
+        JTable historyTable = createStyledTable();
 
         JScrollPane scrollPane = new JScrollPane(historyTable);
         scrollPane.setBorder(BorderFactory.createLineBorder(BORDER_COLOR));
@@ -219,7 +218,7 @@ public class TransactionHistoryDialog extends JDialog {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 0));
         panel.setBackground(PRIMARY_BG);
 
-        JButton closeButton = createStyledButton("Close", ACCENT_BLUE);
+        JButton closeButton = createStyledButton();
         closeButton.addActionListener(e -> dispose());
 
         panel.add(closeButton);
@@ -227,10 +226,10 @@ public class TransactionHistoryDialog extends JDialog {
         return panel;
     }
 
-    private JButton createStyledButton(String text, Color color) {
-        JButton btn = new JButton(text);
+    private JButton createStyledButton() {
+        JButton btn = new JButton("Close");
         btn.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        btn.setBackground(color);
+        btn.setBackground(TransactionHistoryDialog.ACCENT_BLUE);
         btn.setForeground(Color.WHITE);
         btn.setFocusPainted(false);
         btn.setBorderPainted(false);
@@ -240,10 +239,10 @@ public class TransactionHistoryDialog extends JDialog {
         // Hover effect
         btn.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseEntered(java.awt.event.MouseEvent evt) {
-                btn.setBackground(color.darker());
+                btn.setBackground(TransactionHistoryDialog.ACCENT_BLUE.darker());
             }
             public void mouseExited(java.awt.event.MouseEvent evt) {
-                btn.setBackground(color);
+                btn.setBackground(TransactionHistoryDialog.ACCENT_BLUE);
             }
         });
 

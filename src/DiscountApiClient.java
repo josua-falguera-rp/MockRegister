@@ -30,7 +30,7 @@ public class DiscountApiClient {
      * @throws DiscountApiException if the API call fails
      */
     public DiscountResponse calculateDiscount(DiscountRequest request) throws DiscountApiException {
-        if (!config.isEnabled()) {
+        if (config.isEnabled()) {
             throw new DiscountApiException("Discount API is disabled");
         }
 

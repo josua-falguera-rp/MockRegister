@@ -63,17 +63,14 @@ public class RegisterController {
         TransactionItem existingItem = findItemByUPC(product.getUpc());
 
         if (existingItem != null) {
-            int oldQty = existingItem.getQuantity();
             existingItem.addQuantity(qty);
-            journal.logQuantityChange(product.getUpc(), product.getName(),
-                    oldQty, existingItem.getQuantity());
             journal.logItem(product.getUpc(), product.getName(),
-                    product.getPrice(), existingItem.getQuantity(), existingItem.getTotal());
+                    product.getPrice());
         } else {
             TransactionItem newItem = new TransactionItem(product, qty);
             currentTransaction.add(newItem);
             journal.logItem(product.getUpc(), product.getName(),
-                    product.getPrice(), qty, newItem.getTotal());
+                    product.getPrice());
         }
     }
 
@@ -110,7 +107,7 @@ public class RegisterController {
             journal.logQuantityChange(item.getProduct().getUpc(),
                     item.getProduct().getName(), oldQty, newQty);
             journal.logItem(item.getProduct().getUpc(), item.getProduct().getName(),
-                    item.getProduct().getPrice(), newQty, item.getTotal());
+                    item.getProduct().getPrice());
 
             try {
                 if (currentTransactionId != -1) {
@@ -208,23 +205,7 @@ public class RegisterController {
                 titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
                 titleLabel.setForeground(new Color(251, 146, 60)); // ACCENT_ORANGE
 
-                JPanel infoPanel = new JPanel(new GridLayout(2, 1, 5, 8));
-                infoPanel.setBackground(Color.WHITE);
-                infoPanel.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(new Color(229, 231, 235), 1, true),
-                        BorderFactory.createEmptyBorder(10, 10, 10, 10)
-                ));
-
-                JLabel info1 = new JLabel("You have items in the current transaction.");
-                info1.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-                info1.setForeground(new Color(17, 24, 39));
-
-                JLabel info2 = new JLabel("Would you like to suspend it before resuming another?");
-                info2.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-                info2.setForeground(new Color(17, 24, 39));
-
-                infoPanel.add(info1);
-                infoPanel.add(info2);
+                JPanel infoPanel = getJPanel();
 
                 confirmPanel.add(titleLabel, BorderLayout.NORTH);
                 confirmPanel.add(infoPanel, BorderLayout.CENTER);
@@ -335,6 +316,27 @@ public class RegisterController {
         } catch (NumberFormatException e) {
             ui.showError("Invalid transaction selection");
         }
+    }
+
+    private static JPanel getJPanel() {
+        JPanel infoPanel = new JPanel(new GridLayout(2, 1, 5, 8));
+        infoPanel.setBackground(Color.WHITE);
+        infoPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(229, 231, 235), 1, true),
+                BorderFactory.createEmptyBorder(10, 10, 10, 10)
+        ));
+
+        JLabel info1 = new JLabel("You have items in the current transaction.");
+        info1.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        info1.setForeground(new Color(17, 24, 39));
+
+        JLabel info2 = new JLabel("Would you like to suspend it before resuming another?");
+        info2.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        info2.setForeground(new Color(17, 24, 39));
+
+        infoPanel.add(info1);
+        infoPanel.add(info2);
+        return infoPanel;
     }
 
     /**

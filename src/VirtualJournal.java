@@ -1,15 +1,22 @@
+// src/VirtualJournal.java
 import java.io.*;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 
+/**
+ * Virtual Journal that logs transactions both locally and to a remote server.
+ * Sends formatted strings directly to the server - no parsing required.
+ */
 public class VirtualJournal {
     private static final String JOURNAL_FILE = "register_journal.txt";
     private static final DecimalFormat df = new DecimalFormat("#,##0.00");
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
     private BufferedWriter writer;
+    private VirtualJournalSocketClient socketClient;
+    private SocketClientConfig socketConfig;
 
     public VirtualJournal() {
         try {
@@ -17,92 +24,186 @@ public class VirtualJournal {
         } catch (IOException e) {
             System.err.println("Error opening journal file: " + e.getMessage());
         }
+
+        // Initialize socket client
+        socketConfig = new SocketClientConfig();
+        socketClient = new VirtualJournalSocketClient(socketConfig);
+
+        // Attempt to connect to remote server
+        if (socketConfig.isEnabled()) {
+            boolean connected = socketClient.connect();
+            if (!connected) {
+                System.err.println("Failed to connect to Virtual Journal server, will log locally only");
+            }
+        }
+    }
+
+    /**
+     * Sends a line to the remote server if connected.
+     */
+    private void sendToRemoteServer(String line) {
+        if (socketClient.isConnected()) {
+            socketClient.sendJournalLine(line);
+        }
     }
 
     public void logTransactionStart(int transactionId) {
-        writeLine("=".repeat(60));
-        writeLine("TRANSACTION #" + transactionId + " - " + dateFormat.format(new Date()));
-        writeLine("=".repeat(60));
+        String line1 = "=".repeat(60);
+        String line2 = "TRANSACTION #" + transactionId + " - " + dateFormat.format(new Date());
+        String line3 = "=".repeat(60);
+
+        writeLine(line1);
+        writeLine(line2);
+        writeLine(line3);
+
+        sendToRemoteServer(line1);
+        sendToRemoteServer(line2);
+        sendToRemoteServer(line3);
     }
 
-    public void logItem(String upc, String name, double price, int qty, double total) {
-        String line = String.format("%-20s %-30s $%-8s x%-3d $%s",
-                upc, truncate(name), df.format(price), qty, df.format(total));
+    public void logItem(String upc, String name, double price) {
+        String line = String.format("%-20s %-30s $%-8s",
+                upc, truncate(name), df.format(price));
         writeLine(line);
+        sendToRemoteServer(line);
     }
 
     public void logVoidItem(String upc, String name, int qty) {
-        writeLine("*** VOID ITEM: " + upc + " " + name + " QTY: " + qty + " ***");
+        String line = "*** VOID ITEM: " + upc + " " + name + " QTY: " + qty + " ***";
+        writeLine(line);
+        sendToRemoteServer(line);
     }
 
     public void logQuantityChange(String upc, String name, int oldQty, int newQty) {
-        writeLine("*** QTY CHANGE: " + upc + " " + name + " FROM " + oldQty + " TO " + newQty + " ***");
+        String line = "*** QTY CHANGE: " + upc + " " + name + " FROM " + oldQty + " TO " + newQty + " ***";
+        writeLine(line);
+        sendToRemoteServer(line);
     }
 
     public void logSubtotal(double subtotal) {
         writeLine("");
-        writeLine(String.format("%50s $%s", "SUBTOTAL:", df.format(subtotal)));
-    }
+        String line = String.format("%50s $%s", "SUBTOTAL:", df.format(subtotal));
+        writeLine(line);
 
-    // Add this method to VirtualJournal.java (after logSubtotal method)
+        sendToRemoteServer("");
+        sendToRemoteServer(line);
+    }
 
     public void logDiscount(double discountAmount, List<String> appliedDiscounts) {
         if (discountAmount > 0) {
-            writeLine(String.format("%50s -$%s", "DISCOUNT:", df.format(discountAmount)));
+            String line1 = String.format("%50s -$%s", "DISCOUNT:", df.format(discountAmount));
+            writeLine(line1);
+            sendToRemoteServer(line1);
+
             for (String discount : appliedDiscounts) {
-                writeLine(String.format("%50s   %s", "", discount));
+                String line = String.format("%50s   %s", "", discount);
+                writeLine(line);
+                sendToRemoteServer(line);
             }
         }
     }
 
     public void logTax(double tax) {
-        writeLine(String.format("%50s $%s", "TAX (7%):", df.format(tax)));
+        String line = String.format("%50s $%s", "TAX (7%):", df.format(tax));
+        writeLine(line);
+        sendToRemoteServer(line);
     }
 
     public void logTotal(double total) {
-        writeLine(String.format("%50s $%s", "TOTAL:", df.format(total)));
-        writeLine("-".repeat(60));
+        String line1 = String.format("%50s $%s", "TOTAL:", df.format(total));
+        String line2 = "-".repeat(60);
+
+        writeLine(line1);
+        writeLine(line2);
+
+        sendToRemoteServer(line1);
+        sendToRemoteServer(line2);
     }
 
     public void logPayment(String paymentType, double tendered, double change) {
         writeLine("");
-        writeLine("PAYMENT TYPE: " + paymentType);
-        writeLine(String.format("%50s $%s", "AMOUNT TENDERED:", df.format(tendered)));
+        String line1 = "PAYMENT TYPE: " + paymentType;
+        String line2 = String.format("%50s $%s", "AMOUNT TENDERED:", df.format(tendered));
+
+        writeLine(line1);
+        writeLine(line2);
+
+        sendToRemoteServer("");
+        sendToRemoteServer(line1);
+        sendToRemoteServer(line2);
+
         if (change > 0) {
-            writeLine(String.format("%50s $%s", "CHANGE:", df.format(change)));
+            String line3 = String.format("%50s $%s", "CHANGE:", df.format(change));
+            writeLine(line3);
+            sendToRemoteServer(line3);
         }
     }
 
     public void logVoidTransaction(int transactionId) {
         writeLine("");
-        writeLine("*** TRANSACTION #" + transactionId + " VOIDED ***");
-        writeLine("*** VOIDED AT: " + dateFormat.format(new Date()) + " ***");
-        writeLine("=".repeat(60));
+        String line1 = "*** TRANSACTION #" + transactionId + " VOIDED ***";
+        String line2 = "*** VOIDED AT: " + dateFormat.format(new Date()) + " ***";
+        String line3 = "=".repeat(60);
+        writeLine(line1);
+        writeLine(line2);
+        writeLine(line3);
         writeLine("");
+
+        sendToRemoteServer("");
+        sendToRemoteServer(line1);
+        sendToRemoteServer(line2);
+        sendToRemoteServer(line3);
+        sendToRemoteServer("");
     }
 
     public void logSuspendTransaction(int transactionId) {
         writeLine("");
-        writeLine("*** TRANSACTION #" + transactionId + " SUSPENDED ***");
-        writeLine("*** SUSPENDED AT: " + dateFormat.format(new Date()) + " ***");
-        writeLine("=".repeat(60));
+        String line1 = "*** TRANSACTION #" + transactionId + " SUSPENDED ***";
+        String line2 = "*** SUSPENDED AT: " + dateFormat.format(new Date()) + " ***";
+        String line3 = "=".repeat(60);
+        writeLine(line1);
+        writeLine(line2);
+        writeLine(line3);
         writeLine("");
+
+        sendToRemoteServer("");
+        sendToRemoteServer(line1);
+        sendToRemoteServer(line2);
+        sendToRemoteServer(line3);
+        sendToRemoteServer("");
     }
 
     public void logResumeTransaction(int transactionId) {
         writeLine("");
-        writeLine("*** TRANSACTION #" + transactionId + " RESUMED ***");
-        writeLine("*** RESUMED AT: " + dateFormat.format(new Date()) + " ***");
-        writeLine("=".repeat(60));
+        String line1 = "*** TRANSACTION #" + transactionId + " RESUMED ***";
+        String line2 = "*** RESUMED AT: " + dateFormat.format(new Date()) + " ***";
+        String line3 = "=".repeat(60);
+        writeLine(line1);
+        writeLine(line2);
+        writeLine(line3);
+
+        sendToRemoteServer("");
+        sendToRemoteServer(line1);
+        sendToRemoteServer(line2);
+        sendToRemoteServer(line3);
     }
 
     public void logTransactionComplete(int transactionId) {
         writeLine("");
-        writeLine("TRANSACTION #" + transactionId + " COMPLETED");
-        writeLine("COMPLETED AT: " + dateFormat.format(new Date()));
-        writeLine("=".repeat(60));
+        String line1 = "TRANSACTION #" + transactionId + " COMPLETED";
+        String line2 = "COMPLETED AT: " + dateFormat.format(new Date());
+        String line3 = "=".repeat(60);
+        writeLine(line1);
+        writeLine(line2);
+        writeLine(line3);
         writeLine("");
         flush();
+
+        sendToRemoteServer("");
+        sendToRemoteServer(line1);
+        sendToRemoteServer(line2);
+        sendToRemoteServer(line3);
+        sendToRemoteServer("");
     }
 
     private void writeLine(String text) {
@@ -137,6 +238,11 @@ public class VirtualJournal {
             }
         } catch (IOException e) {
             System.err.println("Error closing journal: " + e.getMessage());
+        }
+
+        // Disconnect from remote server
+        if (socketClient != null) {
+            socketClient.disconnect();
         }
     }
 }
